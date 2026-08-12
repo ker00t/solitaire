@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Solitaire</title>
+<style>
+  :root{
+    --ink-900:#12211c;
+    --ink-800:#1b2f28;
+    --felt-700:#2c4238;
+    --felt-600:#3a5548;
+    --paper-100:#f4ecd8;
+    --paper-200:#e6d9b8;
+    --brass-500:#c9a24b;
+    --brass-400:#ddb968;
+    --brick-600:#a6432f;
+    --charcoal-900:#26221d;
+    --brass-600:#8a6f2f;
+    --gap: 6px;
+    --dock-h: 92px;
+    --topbar-h: 52px;
+    font-variant-numeric: tabular-nums;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent; tap-highlight-color: transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:var(--ink-900);
+    color:var(--paper-100);
+    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    overflow-x:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  .display{
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    letter-spacing:0.01em;
+  }
+
+  #app{
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+  }
+
+  /* ---------- top bar (infrequent controls live here — red/yellow reach zone is fine) ---------- */
+  .topbar{
+    height:var(--topbar-h);
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 12px;
+  }
+  .wordmark{
+    font-size:19px;
+    font-weight:600;
+    color:var(--brass-400);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .wordmark .suit{color:var(--brick-600); width:17px; height:17px; display:inline-flex;}
+  .topbar-controls{display:flex; align-items:center; gap:6px;}
+  .icon-btn{
+    min-width:40px; min-height:40px;
+    display:flex; align-items:center; justify-content:center;
+    background:transparent;
+    border:1px solid var(--felt-600);
+    border-radius:10px;
+    color:var(--paper-100);
+    font-size:16px;
+    cursor:pointer;
+    padding:0;
+  }
+  .icon-btn:active{background:var(--felt-700);}
+
+  .handswitch{
+    display:flex; align-items:center; gap:6px;
+    border:1px solid var(--felt-600);
+    border-radius:999px;
+    padding:4px 10px 4px 8px;
+    min-height:40px;
+    cursor:pointer;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--paper-200);
+  }
+  .handswitch .track{
+    width:30px; height:16px; border-radius:999px;
+    background:var(--ink-800);
+    border:1px solid var(--felt-600);
+    position:relative;
+    flex:0 0 auto;
+  }
+  .handswitch .thumb{
+    position:absolute; top:1px; left:1px;
+    width:12px; height:12px; border-radius:50%;
+    background:var(--brass-400);
+    transition:transform .18s ease;
+  }
+  #app.left .handswitch .thumb{transform:translateX(0);}
+  #app.right .handswitch .thumb{transform:translateX(14px);}
+
+  /* ---------- main play surface ---------- */
+  .surface{
+    flex:1 1 auto;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:6px 10px calc(var(--dock-h) + 18px);
+  }
+  .table{
+    max-width:520px;
+    margin:0 auto;
+  }
+
+  .foundations{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:var(--gap);
+    margin-bottom:14px;
+  }
+  .foundation{
+    aspect-ratio:5/7;
+    border-radius:8px;
+    border:1.5px solid var(--brass-500);
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .foundation .ghost{
+    width:clamp(16px,5.2vw,24px);
+    height:clamp(16px,5.2vw,24px);
+    color:var(--brass-500);
+    opacity:0.35;
+  }
+  .foundation .card{position:absolute; inset:0; margin:0;}
+
+  .tableau{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:var(--gap);
+  }
+  .col{
+    display:flex;
+    flex-direction:column;
+    min-height:24px;
+  }
+
+  .card{
+    aspect-ratio:5/7;
+    border-radius:7px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    padding:5% 6%;
+    position:relative;
+    cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .card.up{
+    background:var(--paper-100);
+    box-shadow:0 1px 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.28);
+  }
+  .card.down{
+    background:var(--felt-700);
+    border:1.5px solid var(--brass-500);
+    box-shadow:0 1px 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.28);
+  }
+  .card.red{color:var(--brick-600);}
+  .card.black{color:var(--charcoal-900);}
+  .card .rank{
+    font-size:clamp(10px,3.4vw,15px);
+    font-weight:700;
+    line-height:1;
+  }
+  .card .suit-mini{font-size:0.8em;}
+  .card .pip{
+    align-self:flex-end;
+    font-size:clamp(13px,4.6vw,20px);
+    line-height:1;
+    transform:rotate(180deg);
+  }
+  .suit-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.14em;}
+  .ui-icon{width:1em; height:1em; display:block;}
+  .card.selected{
+    transform:translateY(-8px);
+    box-shadow:0 0 0 2px var(--brass-400), 0 10px 14px rgba(0,0,0,0.45);
+  }
+  .card.shake{animation:shake .32s ease;}
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    25%{transform:translateX(-5px);}
+    75%{transform:translateX(5px);}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .card{transition:none;}
+    .card.shake{animation:none;}
+  }
+
+  .empty-drop{
+    border:1.5px dashed var(--felt-600);
+    border-radius:7px;
+    aspect-ratio:5/7;
+  }
+
+  /* ---------- bottom dock: primary, frequent actions live here (thumb green-zone) ---------- */
+  .dock{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    height:calc(var(--dock-h) + env(safe-area-inset-bottom));
+    padding-bottom:env(safe-area-inset-bottom);
+    background:var(--ink-800);
+    border-top:1px solid var(--felt-700);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding-left:14px;
+    padding-right:14px;
+  }
+  #app.left .dock{flex-direction:row;}
+  #app.right .dock{flex-direction:row-reverse;}
+
+  .dock-slot{
+    flex:0 0 auto;
+    width:58px;
+    aspect-ratio:5/7;
+  }
+  .waste-slot{position:relative;}
+  .waste-slot .card{position:absolute; inset:0; margin:0;}
+  .waste-slot .empty-drop{width:100%; height:100%;}
+
+  .stock-btn{
+    flex:0 0 auto;
+    width:64px;
+    aspect-ratio:5/7;
+    border-radius:8px;
+    border:none;
+    background:var(--brass-500);
+    color:var(--ink-900);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:12px;
+    letter-spacing:0.03em;
+    cursor:pointer;
+    box-shadow:0 3px 0 var(--brass-600), 0 6px 10px rgba(0,0,0,0.4);
+  }
+  .stock-btn:active{transform:translateY(2px); box-shadow:0 1px 0 var(--brass-600), 0 3px 6px rgba(0,0,0,0.4);}
+  .stock-btn .count{font-size:16px; font-weight:800;}
+  .stock-btn .ui-icon{width:16px; height:16px;}
+  .stock-btn.empty{
+    background:var(--felt-700);
+    color:var(--paper-200);
+    box-shadow:0 3px 0 var(--ink-900), 0 6px 10px rgba(0,0,0,0.4);
+  }
+
+  .dock-spacer{flex:1 1 auto;}
+
+  .undo-btn{
+    flex:0 0 auto;
+    min-width:52px; min-height:52px;
+    border-radius:12px;
+    border:1.5px solid var(--felt-600);
+    background:var(--ink-800);
+    color:var(--paper-100);
+    font-size:22px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .undo-btn:disabled{opacity:0.35;}
+  .undo-btn:active:not(:disabled){background:var(--felt-700);}
+
+  .newgame-btn{
+    min-width:40px;min-height:40px;
+    font-size:18px;
+  }
+
+  /* ---------- win overlay ---------- */
+  .win-overlay{
+    position:fixed; inset:0;
+    display:none;
+    align-items:center; justify-content:center;
+    background:rgba(18,33,28,0.82);
+    z-index:20;
+    text-align:center;
+    padding:24px;
+  }
+  .win-overlay.show{display:flex;}
+  .win-card{
+    background:var(--paper-100);
+    color:var(--charcoal-900);
+    border-radius:16px;
+    padding:32px 28px;
+    max-width:320px;
+  }
+  .win-card h2{
+    font-family:inherit;
+    margin:0 0 6px;
+    font-size:26px;
+    color:var(--brick-600);
+  }
+  .win-card p{margin:0 0 18px; font-size:14px; opacity:0.75;}
+  .win-card button{
+    min-height:48px;
+    padding:0 24px;
+    border-radius:10px;
+    border:none;
+    background:var(--brass-500);
+    color:var(--ink-900);
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+  }
+  canvas#confetti{position:fixed; inset:0; z-index:19; pointer-events:none;}
+</style>
+</head>
+<body>
+
+<div id="app" class="right">
+  <div class="topbar">
+    <div class="wordmark"><span class="suit" id="wordmarkSuit"></span>Solitaire</div>
+    <div class="topbar-controls">
+      <button class="icon-btn newgame-btn" id="newGameBtn" title="New game" aria-label="New game"></button>
+      <div class="handswitch" id="handSwitch" role="button" aria-label="Toggle left/right-handed mode">
+        <span id="handLabel">Right</span>
+        <span class="track"><span class="thumb"></span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface">
+    <div class="table">
+      <div class="foundations" id="foundations"></div>
+      <div class="tableau" id="tableau"></div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <button class="stock-btn" id="stockBtn"></button>
+    <div class="dock-slot waste-slot" id="wasteSlot"></div>
+    <div class="dock-spacer"></div>
+    <button class="undo-btn" id="undoBtn" aria-label="Undo" title="Undo"></button>
+  </div>
+</div>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-card">
+    <h2>You win!</h2>
+    <p id="winStats"></p>
+    <button id="playAgainBtn">Play again</button>
+  </div>
+</div>
+<canvas id="confetti"></canvas>
+
+<script>
+(function(){
+  var SUITS = ["S","H","D","C"];
+  var SUIT_COLOR = {S:"black",H:"red",D:"red",C:"black"};
+  var RANK_LABEL = {1:"A",11:"J",12:"Q",13:"K"};
+
+  var state = null;
+  var history = [];
+  var selection = null; // {pile:'tableau'|'waste', col:number, idx:number}
+  var handMode = "right";
+  var moveCount = 0;
+
+  var app = document.getElementById("app");
+  var foundationsEl = document.getElementById("foundations");
+  var tableauEl = document.getElementById("tableau");
+  var stockBtn = document.getElementById("stockBtn");
+  var wasteSlot = document.getElementById("wasteSlot");
+  var undoBtn = document.getElementById("undoBtn");
+  var newGameBtn = document.getElementById("newGameBtn");
+  var handSwitch = document.getElementById("handSwitch");
+  var handLabel = document.getElementById("handLabel");
+  var winOverlay = document.getElementById("winOverlay");
+  var winStats = document.getElementById("winStats");
+  var playAgainBtn = document.getElementById("playAgainBtn");
+  var wordmarkSuit = document.getElementById("wordmarkSuit");
+
+  function rankLabel(r){ return RANK_LABEL[r] || String(r); }
+
+  // Lucide icon paths (ISC license), inlined so the game has no CDN dependency.
+  var SUIT_PATH = {
+    S: '<path d="M2 14.499a5.5 5.5 0 0 0 9.591 3.675.6.6 0 0 1 .818.001A5.5 5.5 0 0 0 22 14.5c0-2.29-1.5-4-3-5.5l-5.492-5.312a2 2 0 0 0-3-.02L5 8.999c-1.5 1.5-3 3.2-3 5.5"/>',
+    H: '<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>',
+    D: '<path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/>',
+    C: '<path d="M17.28 9.05a5.5 5.5 0 1 0-10.56 0A5.5 5.5 0 1 0 12 17.66a5.5 5.5 0 1 0 5.28-8.6Z"/>'
+  };
+  var ICON_UNDO = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>';
+  var ICON_NEWGAME = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>';
+
+  function suitSvg(suit, extraClass){
+    return '<svg class="suit-icon '+(extraClass||"")+'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'+SUIT_PATH[suit]+'</svg>';
+  }
+
+  function hsl(h,s,l){ return "hsl("+((h%360+360)%360).toFixed(0)+", "+s.toFixed(0)+"%, "+l.toFixed(0)+"%)"; }
+  function between(min,max){ return min + Math.random()*(max-min); }
+
+  // Coolors-style: pick a base hue + a harmony scheme, then derive every
+  // role's hue/sat/light from it so every random reload stays legible
+  // (dark ground, light card face, and a guaranteed lightness gap between
+  // the red/black suit colors so cards stay tellable apart).
+  function randomPalette(){
+    var baseHue = Math.floor(Math.random()*360);
+    var schemes = ["mono","analogous","complementary","triadic","splitComplementary"];
+    var scheme = schemes[Math.floor(Math.random()*schemes.length)];
+    var accentHue = baseHue;
+    if (scheme === "analogous") accentHue = baseHue + 30;
+    else if (scheme === "complementary") accentHue = baseHue + 180;
+    else if (scheme === "triadic") accentHue = baseHue + 120;
+    else if (scheme === "splitComplementary") accentHue = baseHue + 150;
+    var feltHue = baseHue + 15;
+    // Suit colors are free to roam each load, but hearts/diamonds and
+    // spades/clubs are pinned >=90 degrees apart in hue AND kept on
+    // opposite ends of the lightness range, so the two groups always
+    // read as visually distinct at a glance, whatever hues land.
+    var suitHueWarm = Math.floor(Math.random()*360);
+    var suitHueCool = suitHueWarm + between(90,270);
+
+    return {
+      "--ink-900": hsl(baseHue, between(28,40), between(10,14)),
+      "--ink-800": hsl(baseHue, between(26,36), between(16,20)),
+      "--felt-700": hsl(feltHue, between(24,34), between(24,30)),
+      "--felt-600": hsl(feltHue, between(22,32), between(32,38)),
+      "--paper-100": hsl(accentHue, between(24,42), between(90,94)),
+      "--paper-200": hsl(accentHue, between(22,38), between(82,87)),
+      "--brass-500": hsl(accentHue, between(55,72), between(48,56)),
+      "--brass-400": hsl(accentHue, between(50,68), between(60,68)),
+      "--brass-600": hsl(accentHue, between(60,75), between(32,38)),
+      "--brick-600": hsl(suitHueWarm, between(55,75), between(40,52)),
+      "--charcoal-900": hsl(suitHueCool, between(45,65), between(18,30))
+    };
+  }
+
+  function applyPalette(vars){
+    var root = document.documentElement.style;
+    Object.keys(vars).forEach(function(k){ root.setProperty(k, vars[k]); });
+  }
+
+  function freshDeck(){
+    var deck = [];
+    for (var s=0; s<SUITS.length; s++){
+      for (var r=1; r<=13; r++){
+        deck.push({suit:SUITS[s], rank:r, faceUp:false});
+      }
+    }
+    for (var i=deck.length-1; i>0; i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var t = deck[i]; deck[i]=deck[j]; deck[j]=t;
+    }
+    return deck;
+  }
+
+  function newGame(){
+    var deck = freshDeck();
+    var tableau = [[],[],[],[],[],[],[]];
+    for (var c=0; c<7; c++){
+      for (var k=0; k<=c; k++){
+        var card = deck.pop();
+        card.faceUp = (k===c);
+        tableau[c].push(card);
+      }
+    }
+    state = {
+      tableau: tableau,
+      stock: deck,
+      waste: [],
+      foundations: {S:[],H:[],D:[],C:[]}
+    };
+    history = [];
+    selection = null;
+    moveCount = 0;
+    winOverlay.classList.remove("show");
+    render();
+  }
+
+  function snapshot(){
+    return JSON.parse(JSON.stringify(state));
+  }
+  function pushHistory(){
+    history.push(snapshot());
+    if (history.length>200) history.shift();
+  }
+  function undo(){
+    if (!history.length) return;
+    state = history.pop();
+    selection = null;
+    if (moveCount>0) moveCount--;
+    render();
+  }
+
+  function topCard(col){
+    var pile = state.tableau[col];
+    return pile.length ? pile[pile.length-1] : null;
+  }
+
+  function canStackTableau(card, destCol){
+    var pile = state.tableau[destCol];
+    if (!pile.length) return card.rank === 13;
+    var top = pile[pile.length-1];
+    if (!top.faceUp) return false;
+    var altColor = SUIT_COLOR[card.suit] !== SUIT_COLOR[top.suit];
+    return altColor && card.rank === top.rank - 1;
+  }
+
+  function canStackFoundation(card, suit){
+    var pile = state.foundations[suit];
+    if (card.suit !== suit) return false;
+    if (!pile.length) return card.rank === 1;
+    return card.rank === pile[pile.length-1].rank + 1;
+  }
+
+  function flipExposed(col){
+    var pile = state.tableau[col];
+    if (pile.length){
+      var top = pile[pile.length-1];
+      if (!top.faceUp) top.faceUp = true;
+    }
+  }
+
+  function clearSelection(){ selection = null; render(); }
+
+  function selectTableau(col, idx){
+    var pile = state.tableau[col];
+    var card = pile[idx];
+    if (!card.faceUp) return;
+    // validate the run from idx..end is a legal alternating descending sequence
+    for (var i=idx; i<pile.length-1; i++){
+      var a = pile[i], b = pile[i+1];
+      if (SUIT_COLOR[a.suit]===SUIT_COLOR[b.suit] || a.rank !== b.rank+1) return;
+    }
+    selection = {pile:"tableau", col:col, idx:idx};
+    render();
+  }
+
+  function selectWaste(){
+    if (!state.waste.length) return;
+    selection = {pile:"waste", col:-1, idx:state.waste.length-1};
+    render();
+  }
+
+  function isSameSelection(pile,col,idx){
+    return selection && selection.pile===pile && selection.col===col && selection.idx===idx;
+  }
+
+  function getSelectedCards(){
+    if (!selection) return [];
+    if (selection.pile==="waste") return [state.waste[state.waste.length-1]];
+    return state.tableau[selection.col].slice(selection.idx);
+  }
+
+  function removeSelectedFromSource(){
+    if (selection.pile==="waste"){
+      return [state.waste.pop()];
+    }
+    var pile = state.tableau[selection.col];
+    var cards = pile.splice(selection.idx);
+    flipExposed(selection.col);
+    return cards;
+  }
+
+  function tryAutoFoundation(cards){
+    if (cards.length !== 1) return false;
+    var card = cards[0];
+    if (canStackFoundation(card, card.suit)){
+      pushHistory();
+      removeSelectedFromSource();
+      state.foundations[card.suit].push(card);
+      moveCount++;
+      selection = null;
+      render();
+      checkWin();
+      return true;
+    }
+    return false;
+  }
+
+  function moveSelectionToTableau(destCol){
+    var cards = getSelectedCards();
+    if (!cards.length) return false;
+    if (!canStackTableau(cards[0], destCol)) return false;
+    if (selection.pile==="tableau" && selection.col===destCol) return false;
+    pushHistory();
+    var moved = removeSelectedFromSource();
+    for (var i=0;i<moved.length;i++) state.tableau[destCol].push(moved[i]);
+    moveCount++;
+    selection = null;
+    render();
+    return true;
+  }
+
+  function moveSelectionToFoundation(suit){
+    var cards = getSelectedCards();
+    if (cards.length !== 1) return false;
+    if (!canStackFoundation(cards[0], suit)) return false;
+    pushHistory();
+    var moved = removeSelectedFromSource();
+    state.foundations[suit].push(moved[0]);
+    moveCount++;
+    selection = null;
+    render();
+    checkWin();
+    return true;
+  }
+
+  function shakeEl(el){
+    if (!el) return;
+    el.classList.remove("shake");
+    void el.offsetWidth;
+    el.classList.add("shake");
+  }
+
+  function onTableauTap(col, idx, isTopMost, ev){
+    var pile = state.tableau[col];
+    var card = pile[idx];
+    if (selection){
+      if (isSameSelection("tableau", col, idx)){
+        if (!tryAutoFoundation(getSelectedCards())) clearSelection();
+        return;
+      }
+      if (moveSelectionToTableau(col)) return;
+      if (card && card.faceUp){
+        selectTableau(col, idx);
+      } else {
+        shakeEl(ev.currentTarget);
+      }
+      return;
+    }
+    selectTableau(col, idx);
+  }
+
+  function onEmptyColTap(col){
+    if (selection){
+      if (moveSelectionToTableau(col)) return;
+      clearSelection();
+    }
+  }
+
+  function onWasteTap(){
+    if (selection){
+      if (isSameSelection("waste", -1, state.waste.length-1)){
+        if (!tryAutoFoundation(getSelectedCards())) clearSelection();
+        return;
+      }
+      selectWaste();
+      return;
+    }
+    selectWaste();
+  }
+
+  function onFoundationTap(suit){
+    if (selection){
+      if (!moveSelectionToFoundation(suit)) clearSelection();
+    }
+  }
+
+  function drawCard(){
+    pushHistory();
+    if (state.stock.length){
+      var card = state.stock.pop();
+      card.faceUp = true;
+      state.waste.push(card);
+    } else if (state.waste.length){
+      while (state.waste.length){
+        var c = state.waste.pop();
+        c.faceUp = false;
+        state.stock.push(c);
+      }
+    } else {
+      history.pop();
+      return;
+    }
+    selection = null;
+    render();
+  }
+
+  function checkWin(){
+    var total = 0;
+    SUITS.forEach(function(s){ total += state.foundations[s].length; });
+    if (total === 52){
+      setTimeout(function(){
+        winStats.textContent = moveCount + " moves";
+        winOverlay.classList.add("show");
+        launchConfetti();
+      }, 250);
+    }
+  }
+
+  function cardEl(card, extraClass){
+    var div = document.createElement("div");
+    div.className = "card " + (card.faceUp ? "up "+SUIT_COLOR[card.suit] : "down") + (extraClass?(" "+extraClass):"");
+    if (card.faceUp){
+      div.innerHTML =
+        '<div class="rank">'+rankLabel(card.rank)+'<span class="suit-mini">'+suitSvg(card.suit)+'</span></div>'+
+        '<div class="pip">'+suitSvg(card.suit)+'</div>';
+    }
+    return div;
+  }
+
+  function render(){
+    app.className = handMode;
+    handLabel.textContent = handMode === "right" ? "Right" : "Left";
+    undoBtn.disabled = history.length === 0;
+
+    // foundations
+    foundationsEl.innerHTML = "";
+    SUITS.forEach(function(suit){
+      var slot = document.createElement("div");
+      slot.className = "foundation";
+      var pile = state.foundations[suit];
+      if (pile.length){
+        var top = pile[pile.length-1];
+        slot.appendChild(cardEl(top));
+      } else {
+        slot.innerHTML = suitSvg(suit, "ghost");
+      }
+      slot.addEventListener("click", function(s){ return function(){ onFoundationTap(s); }; }(suit));
+      foundationsEl.appendChild(slot);
+    });
+
+    // tableau
+    tableauEl.innerHTML = "";
+    state.tableau.forEach(function(pile, col){
+      var colEl = document.createElement("div");
+      colEl.className = "col";
+      if (!pile.length){
+        var drop = document.createElement("div");
+        drop.className = "empty-drop";
+        drop.addEventListener("click", function(c){ return function(){ onEmptyColTap(c); }; }(col));
+        colEl.appendChild(drop);
+      } else {
+        var prevFaceUp = null;
+        pile.forEach(function(card, idx){
+          var isSel = selection && selection.pile==="tableau" && selection.col===col && idx >= selection.idx;
+          var el = cardEl(card, isSel ? "selected" : "");
+          if (prevFaceUp !== null){
+            el.style.marginTop = (prevFaceUp ? "-63%" : "-98%");
+          }
+          prevFaceUp = card.faceUp;
+          el.addEventListener("click", function(c,i){ return function(ev){ onTableauTap(c,i,i===pile.length-1,ev); }; }(col, idx));
+          colEl.appendChild(el);
+        });
+      }
+      tableauEl.appendChild(colEl);
+    });
+
+    // waste
+    wasteSlot.innerHTML = "";
+    if (state.waste.length){
+      var wTop = state.waste[state.waste.length-1];
+      var isSelW = selection && selection.pile==="waste";
+      var wEl = cardEl(wTop, isSelW ? "selected" : "");
+      wEl.addEventListener("click", onWasteTap);
+      wasteSlot.appendChild(wEl);
+    } else {
+      var wDrop = document.createElement("div");
+      wDrop.className = "empty-drop";
+      wasteSlot.appendChild(wDrop);
+    }
+
+    // stock
+    if (state.stock.length){
+      stockBtn.className = "stock-btn";
+      stockBtn.innerHTML = '<span>DRAW</span><span class="count">'+state.stock.length+'</span>';
+    } else {
+      stockBtn.className = "stock-btn empty";
+      stockBtn.innerHTML = ICON_NEWGAME+'<span style="font-size:10px;">RESET</span>';
+    }
+  }
+
+  stockBtn.addEventListener("click", drawCard);
+  undoBtn.addEventListener("click", undo);
+  newGameBtn.addEventListener("click", function(){
+    if (confirm("Start a new game? Current progress will be lost.")) newGame();
+  });
+  handSwitch.addEventListener("click", function(){
+    handMode = handMode === "right" ? "left" : "right";
+    render();
+  });
+  playAgainBtn.addEventListener("click", function(){
+    winOverlay.classList.remove("show");
+    newGame();
+  });
+
+  function launchConfetti(){
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var canvas = document.getElementById("confetti");
+    if (reduce){ canvas.style.display="none"; return; }
+    canvas.style.display = "block";
+    var ctx = canvas.getContext("2d");
+    var W = canvas.width = window.innerWidth;
+    var H = canvas.height = window.innerHeight;
+    var rootStyle = getComputedStyle(document.documentElement);
+    var colors = ["--brass-500","--brick-600","--paper-100","--felt-600"].map(function(v){
+      return rootStyle.getPropertyValue(v).trim();
+    });
+    var pieces = [];
+    for (var i=0;i<90;i++){
+      pieces.push({
+        x: Math.random()*W,
+        y: -20 - Math.random()*H*0.5,
+        w: 5+Math.random()*5,
+        h: 8+Math.random()*6,
+        color: colors[i%colors.length],
+        vy: 2+Math.random()*3,
+        vx: -1.5+Math.random()*3,
+        rot: Math.random()*Math.PI,
+        vr: -0.15+Math.random()*0.3
+      });
+    }
+    var start = Date.now();
+    function frame(){
+      var elapsed = Date.now()-start;
+      ctx.clearRect(0,0,W,H);
+      pieces.forEach(function(p){
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        ctx.save();
+        ctx.translate(p.x,p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+        ctx.restore();
+      });
+      if (elapsed < 3200){
+        requestAnimationFrame(frame);
+      } else {
+        ctx.clearRect(0,0,W,H);
+        canvas.style.display = "none";
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  wordmarkSuit.innerHTML = suitSvg("S");
+  newGameBtn.innerHTML = ICON_NEWGAME;
+  undoBtn.innerHTML = ICON_UNDO;
+
+  applyPalette(randomPalette());
+  newGame();
+})();
+</script>
+</body>
+</html>
