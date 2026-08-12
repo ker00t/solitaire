@@ -18,7 +18,6 @@
     --charcoal-900:#26221d;
     --brass-600:#8a6f2f;
     --gap: 6px;
-    --dock-h: 92px;
     --topbar-h: 52px;
     font-variant-numeric: tabular-nums;
   }
@@ -105,23 +104,31 @@
   #app.left .handswitch .thumb{transform:translateX(0);}
   #app.right .handswitch .thumb{transform:translateX(14px);}
 
-  /* ---------- main play surface ---------- */
+  /* ---------- main play surface: spread across the viewport so the
+     frequently-tapped controls sit in the thumb's natural resting arc
+     rather than glued to the very bottom edge ---------- */
   .surface{
     flex:1 1 auto;
     overflow-y:auto;
     overflow-x:hidden;
-    padding:6px 10px calc(var(--dock-h) + 18px);
+    padding:6px 10px calc(18px + env(safe-area-inset-bottom));
+    display:flex;
   }
   .table{
     max-width:520px;
+    width:100%;
     margin:0 auto;
+    flex:1 1 auto;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    gap:20px;
   }
 
   .foundations{
     display:grid;
     grid-template-columns:repeat(4, 1fr);
     gap:var(--gap);
-    margin-bottom:14px;
   }
   .foundation{
     aspect-ratio:5/7;
@@ -206,22 +213,17 @@
     aspect-ratio:5/7;
   }
 
-  /* ---------- bottom dock: primary, frequent actions live here (thumb green-zone) ---------- */
-  .dock{
-    position:fixed;
-    left:0; right:0; bottom:0;
-    height:calc(var(--dock-h) + env(safe-area-inset-bottom));
-    padding-bottom:env(safe-area-inset-bottom);
-    background:var(--ink-800);
-    border-top:1px solid var(--felt-700);
+  /* ---------- controls row: primary, frequent actions (draw/waste/undo) —
+     sits mid-screen in the thumb's natural resting arc, not pinned to
+     the bottom edge ---------- */
+  .controls-row{
+    flex:0 0 auto;
     display:flex;
     align-items:center;
     gap:10px;
-    padding-left:14px;
-    padding-right:14px;
   }
-  #app.left .dock{flex-direction:row;}
-  #app.right .dock{flex-direction:row-reverse;}
+  #app.left .controls-row{flex-direction:row;}
+  #app.right .controls-row{flex-direction:row-reverse;}
 
   .dock-slot{
     flex:0 0 auto;
@@ -339,16 +341,15 @@
 
   <div class="surface">
     <div class="table">
-      <div class="foundations" id="foundations"></div>
+      <div class="controls-row">
+        <button class="stock-btn" id="stockBtn"></button>
+        <div class="dock-slot waste-slot" id="wasteSlot"></div>
+        <div class="dock-spacer"></div>
+        <button class="undo-btn" id="undoBtn" aria-label="Undo" title="Undo"></button>
+      </div>
       <div class="tableau" id="tableau"></div>
+      <div class="foundations" id="foundations"></div>
     </div>
-  </div>
-
-  <div class="dock">
-    <button class="stock-btn" id="stockBtn"></button>
-    <div class="dock-slot waste-slot" id="wasteSlot"></div>
-    <div class="dock-spacer"></div>
-    <button class="undo-btn" id="undoBtn" aria-label="Undo" title="Undo"></button>
   </div>
 </div>
 
