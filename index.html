@@ -121,8 +121,18 @@
     flex:1 1 auto;
     display:flex;
     flex-direction:column;
-    justify-content:space-between;
-    gap:20px;
+  }
+  /* invisible flex spacers: lead pushes the play group down slightly from
+     the top bar, trail pushes foundations the rest of the way to the
+     bottom — trail gets the larger share so foundations stays low */
+  .spacer{flex:1 1 0%;}
+  .spacer-lead{flex-grow:0.5;}
+  .spacer-trail{flex-grow:1.2;}
+  .play-group{
+    flex:0 0 auto;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
   }
 
   .foundations{
@@ -341,13 +351,17 @@
 
   <div class="surface">
     <div class="table">
-      <div class="controls-row">
-        <button class="stock-btn" id="stockBtn"></button>
-        <div class="dock-slot waste-slot" id="wasteSlot"></div>
-        <div class="dock-spacer"></div>
-        <button class="undo-btn" id="undoBtn" aria-label="Undo" title="Undo"></button>
+      <div class="spacer spacer-lead"></div>
+      <div class="play-group">
+        <div class="controls-row">
+          <button class="stock-btn" id="stockBtn"></button>
+          <div class="dock-slot waste-slot" id="wasteSlot"></div>
+          <div class="dock-spacer"></div>
+          <button class="undo-btn" id="undoBtn" aria-label="Undo" title="Undo"></button>
+        </div>
+        <div class="tableau" id="tableau"></div>
       </div>
-      <div class="tableau" id="tableau"></div>
+      <div class="spacer spacer-trail"></div>
       <div class="foundations" id="foundations"></div>
     </div>
   </div>
