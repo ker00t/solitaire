@@ -17,6 +17,7 @@
     --brick-600:#a6432f;
     --charcoal-900:#26221d;
     --brass-600:#8a6f2f;
+    --text-color:#f4ecd8;
     --gap: 6px;
     --topbar-h: 52px;
     font-variant-numeric: tabular-nums;
@@ -27,7 +28,7 @@
     margin:0;
     min-height:100vh;
     background:var(--ink-900);
-    color:var(--paper-100);
+    color:var(--text-color);
     font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     overflow-x:hidden;
     user-select:none;
@@ -69,7 +70,7 @@
     background:transparent;
     border:1px solid var(--felt-600);
     border-radius:10px;
-    color:var(--paper-100);
+    color:var(--text-color);
     font-size:16px;
     cursor:pointer;
     padding:0;
@@ -86,7 +87,7 @@
     font-size:11px;
     text-transform:uppercase;
     letter-spacing:0.06em;
-    color:var(--paper-200);
+    color:var(--text-color);
   }
   .handswitch .track{
     width:30px; height:16px; border-radius:999px;
@@ -269,7 +270,7 @@
   .stock-btn .ui-icon{width:16px; height:16px;}
   .stock-btn.empty{
     background:var(--felt-700);
-    color:var(--paper-200);
+    color:var(--text-color);
     box-shadow:0 3px 0 var(--ink-900), 0 6px 10px rgba(0,0,0,0.4);
   }
 
@@ -281,7 +282,7 @@
     border-radius:12px;
     border:1.5px solid var(--felt-600);
     background:var(--ink-800);
-    color:var(--paper-100);
+    color:var(--text-color);
     font-size:22px;
     display:flex;
     align-items:center;
@@ -418,14 +419,25 @@
     return '<svg class="suit-icon '+(extraClass||"")+'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'+SUIT_PATH[suit]+'</svg>';
   }
 
-  function hsl(h,s,l){ return "hsl("+((h%360+360)%360).toFixed(0)+", "+s.toFixed(0)+"%, "+l.toFixed(0)+"%)"; }
+  function hsl(h,s,l){
+    l = Math.max(0, Math.min(100, l));
+    s = Math.max(0, Math.min(100, s));
+    return "hsl("+((h%360+360)%360).toFixed(0)+", "+s.toFixed(0)+"%, "+l.toFixed(0)+"%)";
+  }
   function between(min,max){ return min + Math.random()*(max-min); }
 
   // Coolors-style: pick a base hue + a harmony scheme, then derive every
-  // role's hue/sat/light from it so every random reload stays legible
-  // (dark ground, light card face, and a guaranteed lightness gap between
-  // the red/black suit colors so cards stay tellable apart).
+  // role's hue/sat/light from it. Real coolors palettes aren't always a
+  // dark background with light accents — about half the time this rolls
+  // a light-background palette instead, so ink/surface/border/text form
+  // a 4-step staircase that stays within ONE family (all-dark or
+  // all-light) while --text-color always sits at the opposite pole from
+  // the background, guaranteeing readable contrast either way. Card
+  // paper and the two suit-color groups are unaffected by mode — cards
+  // stay light paper with a guaranteed lightness gap between the
+  // red/black suit groups regardless of which way the theme goes.
   function randomPalette(){
+    var darkMode = Math.random() < 0.5;
     var baseHue = Math.floor(Math.random()*360);
     var schemes = ["mono","analogous","complementary","triadic","splitComplementary"];
     var scheme = schemes[Math.floor(Math.random()*schemes.length)];
@@ -435,18 +447,22 @@
     else if (scheme === "triadic") accentHue = baseHue + 120;
     else if (scheme === "splitComplementary") accentHue = baseHue + 150;
     var feltHue = baseHue + 15;
-    // Suit colors are free to roam each load, but hearts/diamonds and
-    // spades/clubs are pinned >=90 degrees apart in hue AND kept on
-    // opposite ends of the lightness range, so the two groups always
-    // read as visually distinct at a glance, whatever hues land.
     var suitHueWarm = Math.floor(Math.random()*360);
     var suitHueCool = suitHueWarm + between(90,270);
 
+    var dir = darkMode ? 1 : -1;
+    var bgL = darkMode ? between(8,18) : between(90,98);
+    var surfaceL = bgL + dir*between(6,10);
+    var fillL = surfaceL + dir*between(6,10);
+    var borderL = fillL + dir*between(8,14);
+    var textL = darkMode ? between(90,98) : between(8,20);
+
     return {
-      "--ink-900": hsl(baseHue, between(28,40), between(10,14)),
-      "--ink-800": hsl(baseHue, between(26,36), between(16,20)),
-      "--felt-700": hsl(feltHue, between(24,34), between(24,30)),
-      "--felt-600": hsl(feltHue, between(22,32), between(32,38)),
+      "--ink-900": hsl(baseHue, between(22,40), bgL),
+      "--ink-800": hsl(baseHue, between(22,38), surfaceL),
+      "--felt-700": hsl(feltHue, between(24,36), fillL),
+      "--felt-600": hsl(feltHue, between(24,36), borderL),
+      "--text-color": hsl(baseHue, between(10,26), textL),
       "--paper-100": hsl(accentHue, between(24,42), between(90,94)),
       "--paper-200": hsl(accentHue, between(22,38), between(82,87)),
       "--brass-500": hsl(accentHue, between(55,72), between(48,56)),
