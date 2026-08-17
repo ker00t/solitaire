@@ -270,7 +270,7 @@
     transform:translate(-50%,-50%);
     width:38%; height:38%;
   }
-  .stock-btn.empty{border-style:dashed;}
+  .stock-btn.empty{background:transparent; border-style:dashed;}
 
   /* ---------- bottom bar: New Game, draw-count, hand-mode — infrequent
      settings, so they live at the very bottom rather than mirroring ---------- */
@@ -582,12 +582,16 @@
   function getSelectedCards(){
     if (!selection) return [];
     if (selection.pile==="waste") return [state.waste[state.waste.length-1]];
+    if (selection.pile==="foundation") return [state.foundations[selection.col][state.foundations[selection.col].length-1]];
     return state.tableau[selection.col].slice(selection.idx);
   }
 
   function removeSelectedFromSource(){
     if (selection.pile==="waste"){
       return [state.waste.pop()];
+    }
+    if (selection.pile==="foundation"){
+      return [state.foundations[selection.col].pop()];
     }
     var pile = state.tableau[selection.col];
     var cards = pile.splice(selection.idx);
@@ -651,14 +655,17 @@
       var card = state.tableau[col][idx];
       if (!card.faceUp){ bounceEl(el); return; }
       cards = state.tableau[col].slice(idx);
+    } else if (pile === "foundation"){
+      if (!state.foundations[col].length) return;
+      cards = [state.foundations[col][state.foundations[col].length-1]];
     } else {
       if (!state.waste.length) return;
       cards = [state.waste[state.waste.length-1]];
     }
     var dest = findAutoDestination(cards, pile==="tableau" ? col : -1);
     if (!dest){ bounceEl(el); return; }
-    selection = pile==="tableau"
-      ? {pile:"tableau", col:col, idx:idx}
+    selection = pile==="tableau" ? {pile:"tableau", col:col, idx:idx}
+      : pile==="foundation" ? {pile:"foundation", col:col, idx:-1}
       : {pile:"waste", col:-1, idx:state.waste.length-1};
     if (dest.type === "foundation") moveSelectionToFoundation(dest.suit);
     else moveSelectionToTableau(dest.col);
@@ -677,10 +684,16 @@
   function onCardPointerDown(pile, col, idx){
     return function(ev){
       if (ev.pointerType === "mouse" && ev.button !== 0) return;
-      var faceUp = pile === "waste" || !!(state.tableau[col][idx] && state.tableau[col][idx].faceUp);
+      var faceUp = pile !== "tableau" || !!(state.tableau[col][idx] && state.tableau[col][idx].faceUp);
+      var cards = null;
+      if (faceUp){
+        if (pile === "tableau") cards = state.tableau[col].slice(idx);
+        else if (pile === "foundation") cards = state.foundations[col].length ? [state.foundations[col][state.foundations[col].length-1]] : null;
+        else cards = [state.waste[state.waste.length-1]];
+      }
       drag = {
         pile: pile, col: col, idx: idx,
-        cards: faceUp ? (pile==="tableau" ? state.tableau[col].slice(idx) : [state.waste[state.waste.length-1]]) : null,
+        cards: cards,
         startX: ev.clientX, startY: ev.clientY,
         active: false,
         dragEls: null,
@@ -699,6 +712,9 @@
     var els;
     if (drag.pile === "waste"){
       els = [wasteSlot.querySelector(".card:last-child")];
+    } else if (drag.pile === "foundation"){
+      var slot = foundationsEl.querySelector('[data-suit="'+drag.col+'"]');
+      els = [slot.querySelector(".card")];
     } else {
       var colEl = tableauEl.children[drag.col];
       els = Array.prototype.slice.call(colEl.querySelectorAll(".card"), drag.idx);
@@ -778,14 +794,18 @@
       var target = findDropTarget(ev.clientX, ev.clientY);
       var moved = false;
       if (target){
-        selection = d.pile==="tableau" ? {pile:"tableau", col:d.col, idx:d.idx} : {pile:"waste", col:-1, idx:state.waste.length-1};
+        selection = d.pile==="tableau" ? {pile:"tableau", col:d.col, idx:d.idx}
+          : d.pile==="foundation" ? {pile:"foundation", col:d.col, idx:-1}
+          : {pile:"waste", col:-1, idx:state.waste.length-1};
         moved = target.type === "foundation" ? moveSelectionToFoundation(target.suit) : moveSelectionToTableau(target.col);
       }
       if (!moved){
         render();
         var el = d.pile==="tableau"
           ? (tableauEl.children[d.col] && tableauEl.children[d.col].children[d.idx])
-          : wasteSlot.querySelector(".card:last-child");
+          : d.pile==="foundation"
+            ? (foundationsEl.querySelector('[data-suit="'+d.col+'"] .card'))
+            : wasteSlot.querySelector(".card:last-child");
         bounceEl(el);
       }
     } else {
@@ -919,7 +939,9 @@
       var pile = state.foundations[suit];
       if (pile.length){
         var top = pile[pile.length-1];
-        slot.appendChild(cardEl(top));
+        var topEl = cardEl(top);
+        topEl.addEventListener("pointerdown", onCardPointerDown("foundation", suit, -1));
+        slot.appendChild(topEl);
       } else {
         slot.innerHTML = suitSvg(suit, "ghost");
       }
@@ -954,17 +976,21 @@
       tableauEl.appendChild(colEl);
     });
 
-    // waste — peek up to 2 cards behind the playable top card so a
-    // 3-draw doesn't hide what's waiting under the pile
+    // waste — in 1-draw mode only the single playable card ever exists,
+    // so there's nothing to fan. In 3-draw mode, fan up to 3 cards with
+    // enough offset to read each one's full rank+suit corner (not just
+    // a sliver), extending away from the stock pile so it never covers it.
     wasteSlot.innerHTML = "";
     if (state.waste.length){
-      var peekCount = Math.min(3, state.waste.length);
+      var peekCount = drawCount === 3 ? Math.min(3, state.waste.length) : 1;
       var peekStart = state.waste.length - peekCount;
+      var fanDir = handMode === "right" ? -1 : 1;
       for (var wi=peekStart; wi<state.waste.length; wi++){
         var depth = state.waste.length - 1 - wi;
         var isTop = depth === 0;
         var wEl = cardEl(state.waste[wi], "");
-        wEl.style.transform = "translate("+(-depth*5)+"px,"+(-depth*5)+"px)";
+        var fanFraction = (fanDir * depth * 0.56).toFixed(2);
+        wEl.style.transform = "translate(calc(var(--card-w) * " + fanFraction + "), 0)";
         wEl.style.zIndex = String(10 - depth);
         if (isTop){
           wEl.addEventListener("pointerdown", onCardPointerDown("waste", -1, state.waste.length-1));
