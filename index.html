@@ -173,8 +173,8 @@
     font-size:clamp(9px, calc(var(--card-w) * 0.29), 16px);
     font-weight:700;
     line-height:1;
-    letter-spacing:-0.08em;
   }
+  .rank-ten{letter-spacing:-0.08em;}
   .card .suit-mini{font-size:0.86em;}
   .card .pip{
     align-self:center;
@@ -876,8 +876,10 @@
     div.className = "card " + (card.faceUp ? "up "+SUIT_COLOR[card.suit] : "down") + (extraClass?(" "+extraClass):"");
     div.dataset.cardId = card.suit + card.rank;
     if (card.faceUp){
+      var rankText = rankLabel(card.rank);
+      var rankHtml = card.rank === 10 ? '<span class="rank-ten">'+rankText+'</span>' : rankText;
       div.innerHTML =
-        '<div class="rank">'+rankLabel(card.rank)+'<span class="suit-mini">'+suitSvg(card.suit)+'</span></div>'+
+        '<div class="rank">'+rankHtml+'<span class="suit-mini">'+suitSvg(card.suit)+'</span></div>'+
         '<div class="pip">'+suitSvg(card.suit)+'</div>';
     }
     return div;
