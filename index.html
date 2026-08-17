@@ -161,6 +161,7 @@
     font-size:clamp(9px, calc(var(--card-w) * 0.29), 16px);
     font-weight:700;
     line-height:1;
+    letter-spacing:-0.08em;
   }
   .card .suit-mini{font-size:0.86em;}
   .card .pip{
@@ -226,8 +227,7 @@
     cursor:pointer;
   }
   .undo-btn .ui-icon{width:16px; height:16px;}
-  .undo-btn:disabled{opacity:0.35;}
-  .undo-btn:active:not(:disabled){background:var(--felt-700);}
+  .undo-btn:active{background:var(--felt-700);}
 
   .controls-row{
     flex:0 0 auto;
@@ -272,8 +272,9 @@
   }
   .stock-btn.empty{background:transparent; border-style:dashed;}
 
-  /* ---------- bottom bar: New Game, draw-count, hand-mode — infrequent
-     settings, so they live at the very bottom rather than mirroring ---------- */
+  /* ---------- bottom bar: New Game, draw-count, hand-mode. Mirrors to
+     the thumb's side like the other controls; reversing the row order
+     when flipped keeps New Game closest to the screen edge either way ---------- */
   .bottom-bar{
     flex:0 0 auto;
     display:flex;
@@ -282,6 +283,8 @@
     flex-wrap:wrap;
     padding-top:4px;
   }
+  #app.left .bottom-bar{flex-direction:row;}
+  #app.right .bottom-bar{flex-direction:row-reverse;}
   .newgame-btn, .draw-toggle, .hand-toggle{
     display:flex;
     align-items:center;
@@ -928,7 +931,7 @@
   function renderBoard(){
     app.className = handMode;
     drawSwitch.textContent = drawCount + "×";
-    undoBtn.disabled = history.length === 0;
+    undoBtn.style.display = history.length === 0 ? "none" : "";
 
     // foundations
     foundationsEl.innerHTML = "";
