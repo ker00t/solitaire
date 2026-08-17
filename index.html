@@ -28,7 +28,12 @@
     --card-w: calc((min(520px, 100vw - 20px) - 6 * var(--gap)) / 7);
     font-variant-numeric: tabular-nums;
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent; tap-highlight-color: transparent;}
+  /* touch-action:manipulation disables the double-tap-to-zoom gesture
+     (which otherwise fires on rapid repeated taps of a button, e.g.
+     undo or the draw pile) while still allowing normal scrolling;
+     .card overrides this to "none" since drag handles all its own
+     touch behavior */
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent; tap-highlight-color: transparent; touch-action:manipulation;}
   html,body{height:100%;}
   body{
     margin:0;
@@ -847,6 +852,12 @@
 
   function drawCard(){
     pushHistory();
+    // a card moving stock->waste has no on-screen "before" element (the
+    // stock pile doesn't render individual cards), so the generic FLIP
+    // system in render() can't detect it and animate it — give the new
+    // top waste card its own flip-reveal explicitly. Scoped to 1-draw,
+    // where there's always exactly one unambiguous card to animate.
+    var willRevealSingle = drawCount === 1 && state.stock.length > 0;
     if (state.stock.length){
       var n = Math.min(drawCount, state.stock.length);
       for (var i=0; i<n; i++){
@@ -866,6 +877,9 @@
     }
     selection = null;
     render();
+    if (willRevealSingle && !window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+      flipRevealEl(wasteSlot.querySelector(".card:last-child"));
+    }
   }
 
   function checkWin(){
@@ -912,6 +926,17 @@
     return map;
   }
 
+  function flipRevealEl(el){
+    if (!el) return;
+    el.classList.remove("flip-reveal");
+    void el.offsetWidth;
+    el.classList.add("flip-reveal");
+    el.addEventListener("animationend", function handler(){
+      el.classList.remove("flip-reveal");
+      el.removeEventListener("animationend", handler);
+    }, {once:true});
+  }
+
   function applyCardTransitions(prevSnapshots){
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     document.querySelectorAll("[data-card-id]").forEach(function(el){
@@ -937,11 +962,7 @@
           });
         });
       } else if (!prev.faceUp && isNowUp){
-        el.classList.add("flip-reveal");
-        el.addEventListener("animationend", function handler(){
-          el.classList.remove("flip-reveal");
-          el.removeEventListener("animationend", handler);
-        }, {once:true});
+        flipRevealEl(el);
       }
     });
   }
