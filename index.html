@@ -34,6 +34,7 @@
     margin:0;
     min-height:100vh;
     min-height:100dvh;
+    min-height:calc(var(--app-height, 100dvh));
     background:var(--ink-900);
     color:var(--text-color);
     font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -51,6 +52,7 @@
     flex-direction:column;
     min-height:100vh;
     min-height:100dvh;
+    min-height:calc(var(--app-height, 100dvh));
   }
 
   /* ---------- top bar: title only ---------- */
@@ -99,7 +101,7 @@
      the only elastic one, absorbing whatever's left before the
      bottom bar. */
   .spacer{flex:1 1 0%;}
-  .spacer-lead{flex:0 0 auto; height:24dvh;}
+  .spacer-lead{flex:0 0 auto; height:calc(var(--app-height, 100dvh) * 0.24);}
   .spacer-trail{flex-grow:1;}
   .play-group{
     flex:0 0 auto;
@@ -1116,6 +1118,23 @@
   newGameBtn.innerHTML = ICON_NEWGAME+"<span>New Game</span>";
   undoBtn.innerHTML = ICON_UNDO+"<span>Undo</span>";
   handSwitch.innerHTML = ICON_HAND;
+
+  // Some mobile browsers leave vh/dvh stuck at a stale value after a
+  // rotate-then-rotate-back cycle instead of recomputing against the
+  // restored viewport. Track the real height in JS as a fallback the
+  // layout can lean on — resize covers most cases; orientationchange
+  // gets an extra delayed re-check since the viewport doesn't always
+  // finish settling by the time that event fires.
+  function setAppHeight(){
+    document.documentElement.style.setProperty("--app-height", window.innerHeight + "px");
+  }
+  setAppHeight();
+  window.addEventListener("resize", setAppHeight);
+  window.addEventListener("orientationchange", function(){
+    setAppHeight();
+    setTimeout(setAppHeight, 120);
+    setTimeout(setAppHeight, 400);
+  });
 
   applyPalette(randomPalette());
   newGame();
