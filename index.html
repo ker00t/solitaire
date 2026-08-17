@@ -123,9 +123,9 @@
     display:flex;
     flex-direction:column;
   }
-  /* invisible flex spacers: lead pushes the play group down slightly from
-     the top bar, trail pushes foundations the rest of the way to the
-     bottom — trail gets the larger share so foundations stays low */
+  /* invisible flex spacers: lead pushes the play group down slightly
+     below the foundations row, trail absorbs the rest of the height so
+     everything stays anchored near the top instead of stretching down */
   .spacer{flex:1 1 0%;}
   .spacer-lead{flex-grow:0.5;}
   .spacer-trail{flex-grow:1.2;}
@@ -184,7 +184,6 @@
   }
   .card.down{
     background:var(--felt-700);
-    border:1.5px solid var(--brass-500);
     box-shadow:0 1px 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.28);
   }
   .card.red{color:var(--brick-600);}
@@ -196,10 +195,12 @@
   }
   .card .suit-mini{font-size:0.8em;}
   .card .pip{
-    align-self:flex-end;
-    font-size:clamp(13px,4.6vw,20px);
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    font-size:clamp(22px,9vw,46px);
     line-height:1;
-    transform:rotate(180deg);
   }
   .suit-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.14em;}
   .ui-icon{width:1em; height:1em; display:block;}
@@ -293,9 +294,22 @@
   .undo-btn:active:not(:disabled){background:var(--felt-700);}
 
   .newgame-btn{
-    min-width:40px;min-height:40px;
-    font-size:18px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    min-height:40px;
+    padding:0 14px;
+    border:1px solid var(--felt-600);
+    border-radius:10px;
+    background:transparent;
+    color:var(--text-color);
+    font-family:inherit;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
   }
+  .newgame-btn:active{background:var(--felt-700);}
+  .newgame-btn .ui-icon{width:16px; height:16px;}
 
   /* ---------- win overlay ---------- */
   .win-overlay{
@@ -342,7 +356,7 @@
   <div class="topbar">
     <div class="wordmark"><span class="suit" id="wordmarkSuit"></span>Solitaire</div>
     <div class="topbar-controls">
-      <button class="icon-btn newgame-btn" id="newGameBtn" title="New game" aria-label="New game"></button>
+      <button class="newgame-btn" id="newGameBtn"></button>
       <div class="handswitch" id="handSwitch" role="button" aria-label="Toggle left/right-handed mode">
         <span id="handLabel">Right</span>
         <span class="track"><span class="thumb"></span></span>
@@ -352,6 +366,7 @@
 
   <div class="surface">
     <div class="table">
+      <div class="foundations" id="foundations"></div>
       <div class="spacer spacer-lead"></div>
       <div class="play-group">
         <div class="controls-row">
@@ -363,7 +378,6 @@
         <div class="tableau" id="tableau"></div>
       </div>
       <div class="spacer spacer-trail"></div>
-      <div class="foundations" id="foundations"></div>
     </div>
   </div>
 </div>
@@ -775,7 +789,7 @@
           var isSel = selection && selection.pile==="tableau" && selection.col===col && idx >= selection.idx;
           var el = cardEl(card, isSel ? "selected" : "");
           if (prevFaceUp !== null){
-            el.style.marginTop = (prevFaceUp ? "-63%" : "-98%");
+            el.style.marginTop = (prevFaceUp ? "-102%" : "-118%");
           }
           prevFaceUp = card.faceUp;
           el.addEventListener("click", function(c,i){ return function(ev){ onTableauTap(c,i,i===pile.length-1,ev); }; }(col, idx));
@@ -873,7 +887,7 @@
   }
 
   wordmarkSuit.innerHTML = suitSvg("S");
-  newGameBtn.innerHTML = ICON_NEWGAME;
+  newGameBtn.innerHTML = ICON_NEWGAME+"<span>New Game</span>";
   undoBtn.innerHTML = ICON_UNDO;
 
   applyPalette(randomPalette());
