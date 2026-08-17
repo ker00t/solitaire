@@ -177,9 +177,15 @@
     65%{transform:translateY(2px);}
     100%{transform:translateY(0);}
   }
+  .card.flip-reveal{animation:flip-reveal .28s ease;}
+  @keyframes flip-reveal{
+    0%{transform:rotateY(90deg); filter:brightness(0.7);}
+    100%{transform:rotateY(0deg); filter:brightness(1);}
+  }
   @media (prefers-reduced-motion: reduce){
     .card{transition:none;}
     .card.bounce{animation:none;}
+    .card.flip-reveal{animation:none;}
   }
 
   .empty-drop{
@@ -526,7 +532,7 @@
     selection = null;
     moveCount = 0;
     winOverlay.classList.remove("show");
-    render();
+    renderBoard(); // skip the move/reveal transition for a full reshuffle
   }
 
   function snapshot(){
@@ -832,6 +838,7 @@
   function cardEl(card, extraClass){
     var div = document.createElement("div");
     div.className = "card " + (card.faceUp ? "up "+SUIT_COLOR[card.suit] : "down") + (extraClass?(" "+extraClass):"");
+    div.dataset.cardId = card.suit + card.rank;
     if (card.faceUp){
       div.innerHTML =
         '<div class="rank">'+rankLabel(card.rank)+'<span class="suit-mini">'+suitSvg(card.suit)+'</span></div>'+
@@ -840,7 +847,65 @@
     return div;
   }
 
+  // Snapshot every on-board card's position + face state right before a
+  // re-render, then diff against the freshly rebuilt DOM afterward: a
+  // card whose position changed gets a FLIP transform animation (starts
+  // offset by the delta, transitions to zero); a card that stayed put
+  // but flipped face-down->face-up gets a rotateY reveal animation
+  // instead. Cards are matched by suit+rank, which is a stable identity
+  // since a deck has exactly one of each.
+  function captureCardSnapshots(){
+    var map = {};
+    document.querySelectorAll("[data-card-id]").forEach(function(el){
+      map[el.dataset.cardId] = {
+        rect: el.getBoundingClientRect(),
+        faceUp: el.classList.contains("up")
+      };
+    });
+    return map;
+  }
+
+  function applyCardTransitions(prevSnapshots){
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    document.querySelectorAll("[data-card-id]").forEach(function(el){
+      var prev = prevSnapshots[el.dataset.cardId];
+      if (!prev) return;
+      var newRect = el.getBoundingClientRect();
+      var dx = prev.rect.left - newRect.left;
+      var dy = prev.rect.top - newRect.top;
+      var moved = Math.abs(dx) > 1 || Math.abs(dy) > 1;
+      var isNowUp = el.classList.contains("up");
+      if (moved){
+        var baseTransform = el.style.transform || "";
+        el.style.transition = "none";
+        el.style.transform = "translate("+dx+"px,"+dy+"px) " + baseTransform;
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            el.style.transition = "transform .22s ease";
+            el.style.transform = baseTransform;
+            el.addEventListener("transitionend", function handler(){
+              el.style.transition = "";
+              el.removeEventListener("transitionend", handler);
+            });
+          });
+        });
+      } else if (!prev.faceUp && isNowUp){
+        el.classList.add("flip-reveal");
+        el.addEventListener("animationend", function handler(){
+          el.classList.remove("flip-reveal");
+          el.removeEventListener("animationend", handler);
+        }, {once:true});
+      }
+    });
+  }
+
   function render(){
+    var prevSnapshots = captureCardSnapshots();
+    renderBoard();
+    applyCardTransitions(prevSnapshots);
+  }
+
+  function renderBoard(){
     app.className = handMode;
     drawSwitch.textContent = drawCount + "×";
     undoBtn.disabled = history.length === 0;
