@@ -117,8 +117,8 @@
   .foundation .ghost{
     width:clamp(16px,5.2vw,24px);
     height:clamp(16px,5.2vw,24px);
-    color:var(--brass-500);
-    opacity:0.35;
+    color:var(--felt-border);
+    opacity:0.7;
   }
   .foundation .card{position:absolute; inset:0; margin:0;}
 
@@ -139,7 +139,7 @@
     border:1px solid transparent;
     display:flex;
     flex-direction:column;
-    gap:11%;
+    gap:14%;
     padding:4% 8%;
     position:relative;
     cursor:pointer;
@@ -157,6 +157,7 @@
   .card.red{color:var(--brick-600);}
   .card.black{color:var(--charcoal-900);}
   .card .rank{
+    min-height:26%;
     font-size:clamp(9px, calc(var(--card-w) * 0.29), 16px);
     font-weight:700;
     line-height:1;
@@ -209,7 +210,7 @@
     gap:8px;
     min-height:40px;
     padding:0 14px;
-    border:1.5px solid var(--felt-600);
+    border:1px solid var(--felt-border);
     border-radius:10px;
     background:transparent;
     color:var(--text-color);
@@ -282,7 +283,7 @@
     gap:6px;
     min-height:44px;
     padding:0 16px;
-    border:1px solid var(--brass-500);
+    border:1px solid var(--felt-border);
     border-radius:10px;
     background:var(--felt-700);
     color:var(--text-color);
@@ -875,7 +876,10 @@
         pile.forEach(function(card, idx){
           var el = cardEl(card, "");
           if (prevFaceUp !== null){
-            el.style.marginTop = (prevFaceUp ? "-102%" : "-118%");
+            // face-up-under-face-up stays width-relative (needs to keep
+            // showing the rank corner at any card size); face-down-under-
+            // face-down uses a fixed 8px reveal regardless of card size
+            el.style.marginTop = prevFaceUp ? "-102%" : "calc((var(--card-w) * -1.4) + 8px)";
           }
           prevFaceUp = card.faceUp;
           el.addEventListener("pointerdown", onCardPointerDown("tableau", col, idx));
