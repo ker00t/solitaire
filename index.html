@@ -20,6 +20,10 @@
     --text-color:#f4ecd8;
     --gap: 6px;
     --topbar-h: 52px;
+    /* single source of truth for every card-sized element (tableau,
+       foundations, waste, draw) so they all render at the same size —
+       mirrors the tableau's own 7-column-minus-gaps math */
+    --card-w: calc((min(520px, 100vw - 20px) - 6 * var(--gap)) / 7);
     font-variant-numeric: tabular-nums;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent; tap-highlight-color: transparent;}
@@ -137,11 +141,12 @@
   }
 
   .foundations{
-    display:grid;
-    grid-template-columns:repeat(4, 1fr);
+    display:flex;
     gap:var(--gap);
   }
   .foundation{
+    width:var(--card-w);
+    flex:0 0 auto;
     aspect-ratio:5/7;
     border-radius:8px;
     border:1.5px solid var(--brass-500);
@@ -239,7 +244,7 @@
 
   .dock-slot{
     flex:0 0 auto;
-    width:58px;
+    width:var(--card-w);
     aspect-ratio:5/7;
   }
   .waste-slot{position:relative;}
@@ -248,7 +253,7 @@
 
   .stock-btn{
     flex:0 0 auto;
-    width:64px;
+    width:var(--card-w);
     aspect-ratio:5/7;
     border-radius:8px;
     border:none;
