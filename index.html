@@ -49,66 +49,23 @@
     min-height:100vh;
   }
 
-  /* ---------- top bar (infrequent controls live here — red/yellow reach zone is fine) ---------- */
+  /* ---------- top bar: title only ---------- */
   .topbar{
     min-height:var(--topbar-h);
     flex:0 0 auto;
     display:flex;
     align-items:center;
-    justify-content:space-between;
-    flex-wrap:wrap;
-    row-gap:8px;
-    padding:8px 12px;
+    justify-content:center;
+    padding:18px 16px 6px;
   }
   .wordmark{
-    font-size:19px;
-    font-weight:600;
-    color:var(--brass-400);
-    display:flex;
-    align-items:center;
-    gap:6px;
+    margin:0;
+    font-size:26px;
+    font-weight:700;
+    letter-spacing:-0.02em;
+    color:var(--brick-600);
+    text-align:center;
   }
-  .wordmark .suit{color:var(--brick-600); width:17px; height:17px; display:inline-flex;}
-  .topbar-controls{display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
-  .icon-btn{
-    min-width:40px; min-height:40px;
-    display:flex; align-items:center; justify-content:center;
-    background:transparent;
-    border:1px solid var(--felt-600);
-    border-radius:10px;
-    color:var(--text-color);
-    font-size:16px;
-    cursor:pointer;
-    padding:0;
-  }
-  .icon-btn:active{background:var(--felt-700);}
-
-  .toggle-switch{
-    display:flex; align-items:center; gap:6px;
-    border:1px solid var(--felt-600);
-    border-radius:999px;
-    padding:4px 10px 4px 8px;
-    min-height:40px;
-    cursor:pointer;
-    font-size:11px;
-    text-transform:uppercase;
-    letter-spacing:0.06em;
-    color:var(--text-color);
-  }
-  .toggle-switch .track{
-    width:30px; height:16px; border-radius:999px;
-    background:var(--ink-800);
-    border:1px solid var(--felt-600);
-    position:relative;
-    flex:0 0 auto;
-  }
-  .toggle-switch .thumb{
-    position:absolute; top:1px; left:1px;
-    width:12px; height:12px; border-radius:50%;
-    background:var(--brass-400);
-    transition:transform .18s ease;
-  }
-  .toggle-switch.on .thumb{transform:translateX(14px);}
 
   /* ---------- main play surface: spread across the viewport so the
      frequently-tapped controls sit in the thumb's natural resting arc
@@ -144,16 +101,18 @@
   .foundations{
     display:flex;
     gap:var(--gap);
+    flex:0 0 auto;
   }
   .foundation{
     width:var(--card-w);
     flex:0 0 auto;
     aspect-ratio:5/7;
     border-radius:8px;
-    border:1.5px solid var(--brass-500);
+    border:1.5px dashed var(--felt-600);
     display:flex; align-items:center; justify-content:center;
     position:relative;
   }
+  .foundation:has(.card){border-style:solid; border-color:var(--brass-500);}
   .foundation .ghost{
     width:clamp(16px,5.2vw,24px);
     height:clamp(16px,5.2vw,24px);
@@ -175,10 +134,11 @@
 
   .card{
     aspect-ratio:5/7;
-    border-radius:7px;
+    border-radius:8px;
+    border:1px solid transparent;
     display:flex;
     flex-direction:column;
-    justify-content:space-between;
+    gap:6%;
     padding:5% 6%;
     position:relative;
     cursor:pointer;
@@ -187,10 +147,12 @@
   }
   .card.up{
     background:var(--paper-100);
+    border-color:var(--paper-200);
     box-shadow:0 1px 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.28);
   }
   .card.down{
     background:var(--felt-700);
+    border-color:var(--brass-500);
     box-shadow:0 1px 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.28);
   }
   .card.red{color:var(--brick-600);}
@@ -202,11 +164,8 @@
   }
   .card .suit-mini{font-size:0.8em;}
   .card .pip{
-    position:absolute;
-    top:50%;
-    left:50%;
-    transform:translate(-50%,-50%);
-    font-size:clamp(22px,9vw,46px);
+    align-self:center;
+    font-size:clamp(20px,8vw,40px);
     line-height:1;
   }
   .suit-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.14em;}
@@ -236,17 +195,46 @@
     border-radius:7px;
   }
 
-  /* ---------- controls row: primary, frequent actions (draw/waste/undo) —
-     sits mid-screen in the thumb's natural resting arc, not pinned to
-     the bottom edge ---------- */
+  /* ---------- undo row + controls row: sit just above the tableau,
+     mirrored by hand mode so the frequently-tapped stock/waste side
+     lands in the thumb's natural resting arc ---------- */
+  .undo-row{
+    flex:0 0 auto;
+    display:flex;
+  }
+  #app.right .undo-row{justify-content:flex-end;}
+  #app.left .undo-row{justify-content:flex-start;}
+
+  .undo-btn{
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-height:40px;
+    padding:0 14px;
+    border:1.5px solid var(--felt-600);
+    border-radius:10px;
+    background:transparent;
+    color:var(--text-color);
+    font-family:inherit;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .undo-btn .ui-icon{width:16px; height:16px;}
+  .undo-btn:disabled{opacity:0.35;}
+  .undo-btn:active:not(:disabled){background:var(--felt-700);}
+
   .controls-row{
     flex:0 0 auto;
     display:flex;
     align-items:center;
+    justify-content:space-between;
     gap:10px;
   }
   #app.left .controls-row{flex-direction:row;}
   #app.right .controls-row{flex-direction:row-reverse;}
+  .stock-waste{flex:0 0 auto; display:flex; gap:10px;}
 
   .dock-slot{
     flex:0 0 auto;
@@ -262,65 +250,68 @@
     width:var(--card-w);
     aspect-ratio:5/7;
     border-radius:8px;
-    border:none;
-    background:var(--brass-500);
-    color:var(--ink-900);
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    gap:2px;
-    font-family:inherit;
-    font-weight:700;
-    font-size:12px;
-    letter-spacing:0.03em;
-    cursor:pointer;
-    box-shadow:0 3px 0 var(--brass-600), 0 6px 10px rgba(0,0,0,0.4);
-  }
-  .stock-btn:active{transform:translateY(2px); box-shadow:0 1px 0 var(--brass-600), 0 3px 6px rgba(0,0,0,0.4);}
-  .stock-btn .count{font-size:16px; font-weight:800;}
-  .stock-btn .ui-icon{width:16px; height:16px;}
-  .stock-btn.empty{
+    border:1px solid var(--brass-500);
     background:var(--felt-700);
     color:var(--text-color);
-    box-shadow:0 3px 0 var(--ink-900), 0 6px 10px rgba(0,0,0,0.4);
+    position:relative;
+    cursor:pointer;
+    padding:0;
   }
+  .stock-btn:active{filter:brightness(1.12);}
+  .stock-btn .count-badge{
+    position:absolute;
+    top:3px; right:3px;
+    min-width:16px;
+    height:16px;
+    padding:0 3px;
+    border-radius:999px;
+    background:var(--brass-500);
+    color:var(--ink-900);
+    font-size:10px;
+    font-weight:800;
+    line-height:16px;
+    text-align:center;
+  }
+  .stock-btn .ui-icon{
+    position:absolute;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:38%; height:38%;
+  }
+  .stock-btn.empty{border-style:dashed;}
 
-  .dock-spacer{flex:1 1 auto;}
-
-  .undo-btn{
+  /* ---------- bottom bar: New Game, draw-count, hand-mode — infrequent
+     settings, so they live at the very bottom rather than mirroring ---------- */
+  .bottom-bar{
     flex:0 0 auto;
-    min-width:52px; min-height:52px;
-    border-radius:12px;
-    border:1.5px solid var(--felt-600);
-    background:var(--ink-800);
-    color:var(--text-color);
-    font-size:22px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    padding-top:4px;
+  }
+  .newgame-btn, .draw-toggle, .hand-toggle{
     display:flex;
     align-items:center;
     justify-content:center;
-    cursor:pointer;
-  }
-  .undo-btn:disabled{opacity:0.35;}
-  .undo-btn:active:not(:disabled){background:var(--felt-700);}
-
-  .newgame-btn{
-    display:flex;
-    align-items:center;
     gap:6px;
-    min-height:40px;
-    padding:0 14px;
-    border:1px solid var(--felt-600);
+    min-height:44px;
+    padding:0 16px;
+    border:1px solid var(--brass-500);
     border-radius:10px;
-    background:transparent;
+    background:var(--felt-700);
     color:var(--text-color);
     font-family:inherit;
     font-weight:600;
     font-size:13px;
     cursor:pointer;
   }
-  .newgame-btn:active{background:var(--felt-700);}
+  .newgame-btn:active, .draw-toggle:active, .hand-toggle:active{filter:brightness(1.15);}
   .newgame-btn .ui-icon{width:16px; height:16px;}
+  .draw-toggle{min-width:44px; padding:0 12px;}
+  .hand-toggle{min-width:44px; padding:0;}
+  .hand-toggle .ui-icon{width:18px; height:18px; transition:transform .18s ease;}
+  #app.left .hand-toggle .ui-icon{transform:scaleX(-1);}
 
   /* ---------- win overlay ---------- */
   .win-overlay{
@@ -365,34 +356,31 @@
 
 <div id="app" class="right">
   <div class="topbar">
-    <div class="wordmark"><span class="suit" id="wordmarkSuit"></span>Solitaire</div>
-    <div class="topbar-controls">
-      <button class="newgame-btn" id="newGameBtn"></button>
-      <div class="toggle-switch" id="drawSwitch" role="button" aria-label="Toggle 1-card or 3-card draw">
-        <span id="drawLabel">Draw 1</span>
-        <span class="track"><span class="thumb"></span></span>
-      </div>
-      <div class="toggle-switch" id="handSwitch" role="button" aria-label="Toggle left/right-handed mode">
-        <span id="handLabel">Right</span>
-        <span class="track"><span class="thumb"></span></span>
-      </div>
-    </div>
+    <h1 class="wordmark">Simple Solitaire</h1>
   </div>
 
   <div class="surface">
     <div class="table">
-      <div class="foundations" id="foundations"></div>
       <div class="spacer spacer-lead"></div>
       <div class="play-group">
+        <div class="undo-row">
+          <button class="undo-btn" id="undoBtn" title="Undo"></button>
+        </div>
         <div class="controls-row">
-          <button class="stock-btn" id="stockBtn"></button>
-          <div class="dock-slot waste-slot" id="wasteSlot"></div>
-          <div class="dock-spacer"></div>
-          <button class="undo-btn" id="undoBtn" aria-label="Undo" title="Undo"></button>
+          <div class="stock-waste">
+            <button class="stock-btn" id="stockBtn"></button>
+            <div class="dock-slot waste-slot" id="wasteSlot"></div>
+          </div>
+          <div class="foundations" id="foundations"></div>
         </div>
         <div class="tableau" id="tableau"></div>
       </div>
       <div class="spacer spacer-trail"></div>
+      <div class="bottom-bar">
+        <button class="newgame-btn" id="newGameBtn"></button>
+        <button class="draw-toggle" id="drawSwitch" aria-label="Toggle 1-card or 3-card draw"></button>
+        <button class="hand-toggle" id="handSwitch" aria-label="Toggle left/right-handed mode"></button>
+      </div>
     </div>
   </div>
 </div>
@@ -427,13 +415,10 @@
   var undoBtn = document.getElementById("undoBtn");
   var newGameBtn = document.getElementById("newGameBtn");
   var handSwitch = document.getElementById("handSwitch");
-  var handLabel = document.getElementById("handLabel");
   var drawSwitch = document.getElementById("drawSwitch");
-  var drawLabel = document.getElementById("drawLabel");
   var winOverlay = document.getElementById("winOverlay");
   var winStats = document.getElementById("winStats");
   var playAgainBtn = document.getElementById("playAgainBtn");
-  var wordmarkSuit = document.getElementById("wordmarkSuit");
 
   function rankLabel(r){ return RANK_LABEL[r] || String(r); }
 
@@ -446,6 +431,7 @@
   };
   var ICON_UNDO = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>';
   var ICON_NEWGAME = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>';
+  var ICON_HAND = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>';
 
   function suitSvg(suit, extraClass){
     return '<svg class="suit-icon '+(extraClass||"")+'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'+SUIT_PATH[suit]+'</svg>';
@@ -860,10 +846,7 @@
 
   function render(){
     app.className = handMode;
-    handLabel.textContent = handMode === "right" ? "Right" : "Left";
-    handSwitch.classList.toggle("on", handMode === "right");
-    drawLabel.textContent = "Draw " + drawCount;
-    drawSwitch.classList.toggle("on", drawCount === 3);
+    drawSwitch.textContent = drawCount + "×";
     undoBtn.disabled = history.length === 0;
 
     // foundations
@@ -935,10 +918,10 @@
     // stock
     if (state.stock.length){
       stockBtn.className = "stock-btn";
-      stockBtn.innerHTML = '<span>DRAW</span><span class="count">'+state.stock.length+'</span>';
+      stockBtn.innerHTML = '<span class="count-badge">'+state.stock.length+'</span>';
     } else {
       stockBtn.className = "stock-btn empty";
-      stockBtn.innerHTML = ICON_NEWGAME+'<span style="font-size:10px;">RESET</span>';
+      stockBtn.innerHTML = ICON_NEWGAME;
     }
   }
 
@@ -1009,9 +992,9 @@
     requestAnimationFrame(frame);
   }
 
-  wordmarkSuit.innerHTML = suitSvg("S");
   newGameBtn.innerHTML = ICON_NEWGAME+"<span>New Game</span>";
-  undoBtn.innerHTML = ICON_UNDO;
+  undoBtn.innerHTML = ICON_UNDO+"<span>Undo</span>";
+  handSwitch.innerHTML = ICON_HAND;
 
   applyPalette(randomPalette());
   newGame();
