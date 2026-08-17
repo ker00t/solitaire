@@ -172,12 +172,16 @@
   .card.black{color:var(--charcoal-900);}
   .card .rank{
     min-height:26%;
-    font-size:clamp(9px, calc(var(--card-w) * 0.29), 16px);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    font-size:clamp(10px, calc(var(--card-w) * 0.333), 20px);
     font-weight:700;
     line-height:1;
   }
   .rank-ten{letter-spacing:-0.08em;}
-  .card .suit-mini{font-size:0.86em;}
+  .card .suit-mini{font-size:0.75em;}
   .card .pip{
     align-self:center;
     font-size:clamp(18px, calc(var(--card-w) * 0.667), 42px);
