@@ -33,6 +33,7 @@
   body{
     margin:0;
     min-height:100vh;
+    min-height:100dvh;
     background:var(--ink-900);
     color:var(--text-color);
     font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -49,6 +50,7 @@
     display:flex;
     flex-direction:column;
     min-height:100vh;
+    min-height:100dvh;
   }
 
   /* ---------- top bar: title only ---------- */
@@ -90,12 +92,15 @@
     display:flex;
     flex-direction:column;
   }
-  /* invisible flex spacers: lead pushes the play group down slightly
-     below the foundations row, trail absorbs the rest of the height so
-     everything stays anchored near the top instead of stretching down */
+  /* lead is a FIXED offset (not flex-grow) so the play group's top
+     position never depends on its own content height — otherwise a
+     taller tableau or the undo button appearing/disappearing would
+     shrink/grow this spacer and shift the whole play area. trail is
+     the only elastic one, absorbing whatever's left before the
+     bottom bar. */
   .spacer{flex:1 1 0%;}
-  .spacer-lead{flex-grow:0.5;}
-  .spacer-trail{flex-grow:1.2;}
+  .spacer-lead{flex:0 0 auto; height:6dvh;}
+  .spacer-trail{flex-grow:1;}
   .play-group{
     flex:0 0 auto;
     display:flex;
@@ -936,7 +941,11 @@
   function renderBoard(){
     app.className = handMode;
     drawSwitch.textContent = drawCount + "×";
-    undoBtn.style.display = history.length === 0 ? "none" : "";
+    // visibility (not display) keeps the row's height reserved so the
+    // controls/tableau below it never shift when undo appears/disappears
+    var noHistory = history.length === 0;
+    undoBtn.style.visibility = noHistory ? "hidden" : "";
+    undoBtn.style.pointerEvents = noHistory ? "none" : "";
 
     // foundations
     foundationsEl.innerHTML = "";
