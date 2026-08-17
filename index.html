@@ -10,8 +10,9 @@
     --ink-800:#1b2f28;
     --felt-700:#2c4238;
     --felt-600:#3a5548;
+    --felt-border:#1f2f27;
     --paper-100:#f4ecd8;
-    --paper-200:#e6d9b8;
+    --paper-border:#ddceac;
     --brass-500:#c9a24b;
     --brass-400:#ddb968;
     --brick-600:#a6432f;
@@ -108,11 +109,11 @@
     flex:0 0 auto;
     aspect-ratio:5/7;
     border-radius:8px;
-    border:1.5px dashed var(--felt-600);
+    border:1.5px dashed var(--felt-border);
     display:flex; align-items:center; justify-content:center;
     position:relative;
   }
-  .foundation:has(.card){border-style:solid; border-color:var(--brass-500);}
+  .foundation:has(.card){border-style:solid;}
   .foundation .ghost{
     width:clamp(16px,5.2vw,24px);
     height:clamp(16px,5.2vw,24px);
@@ -138,41 +139,36 @@
     border:1px solid transparent;
     display:flex;
     flex-direction:column;
-    gap:6%;
-    padding:5% 6%;
+    gap:11%;
+    padding:4% 8%;
     position:relative;
     cursor:pointer;
     touch-action:none;
-    transition:transform .12s ease, box-shadow .12s ease;
+    transition:transform .12s ease;
   }
   .card.up{
     background:var(--paper-100);
-    border-color:var(--paper-200);
-    box-shadow:0 1px 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.28);
+    border-color:var(--paper-border);
   }
   .card.down{
     background:var(--felt-700);
-    border-color:var(--brass-500);
-    box-shadow:0 1px 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.28);
+    border-color:var(--felt-border);
   }
   .card.red{color:var(--brick-600);}
   .card.black{color:var(--charcoal-900);}
   .card .rank{
-    font-size:clamp(10px,3.4vw,15px);
+    font-size:clamp(9px, calc(var(--card-w) * 0.29), 16px);
     font-weight:700;
     line-height:1;
   }
-  .card .suit-mini{font-size:0.8em;}
+  .card .suit-mini{font-size:0.86em;}
   .card .pip{
     align-self:center;
-    font-size:clamp(20px,8vw,40px);
+    font-size:clamp(18px, calc(var(--card-w) * 0.667), 42px);
     line-height:1;
   }
   .suit-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.14em;}
   .ui-icon{width:1em; height:1em; display:block;}
-  .card.dragging{
-    box-shadow:0 16px 22px rgba(0,0,0,0.45);
-  }
   .card.bounce{animation:bounce .32s ease;}
   @keyframes bounce{
     0%{transform:translateY(0);}
@@ -186,12 +182,13 @@
   }
 
   .empty-drop{
-    border:1.5px dashed var(--felt-600);
+    border:1.5px dashed var(--felt-border);
     border-radius:7px;
     aspect-ratio:5/7;
   }
   .col.drop-target, .foundation.drop-target{
-    box-shadow:0 0 0 3px var(--brass-400) inset;
+    outline:3px solid var(--brass-400);
+    outline-offset:-3px;
     border-radius:7px;
   }
 
@@ -235,6 +232,8 @@
   #app.left .controls-row{flex-direction:row;}
   #app.right .controls-row{flex-direction:row-reverse;}
   .stock-waste{flex:0 0 auto; display:flex; gap:10px;}
+  #app.left .stock-waste{flex-direction:row;}
+  #app.right .stock-waste{flex-direction:row-reverse;}
 
   .dock-slot{
     flex:0 0 auto;
@@ -250,7 +249,7 @@
     width:var(--card-w);
     aspect-ratio:5/7;
     border-radius:8px;
-    border:1px solid var(--brass-500);
+    border:1px solid var(--felt-border);
     background:var(--felt-700);
     color:var(--text-color);
     position:relative;
@@ -258,20 +257,6 @@
     padding:0;
   }
   .stock-btn:active{filter:brightness(1.12);}
-  .stock-btn .count-badge{
-    position:absolute;
-    top:3px; right:3px;
-    min-width:16px;
-    height:16px;
-    padding:0 3px;
-    border-radius:999px;
-    background:var(--brass-500);
-    color:var(--ink-900);
-    font-size:10px;
-    font-weight:800;
-    line-height:16px;
-    text-align:center;
-  }
   .stock-btn .ui-icon{
     position:absolute;
     top:50%; left:50%;
@@ -475,14 +460,24 @@
     var borderL = fillL + dir*between(8,14);
     var textL = darkMode ? between(90,98) : between(8,20);
 
+    // felt-border and paper-border are exact darker shades of felt-700
+    // and paper-100 (same hue+saturation, lightness reduced) — every
+    // dashed outline and card-back border reuses these two tokens so
+    // they're always a shade of their own surface, never an unrelated
+    // accent color.
+    var feltFillS = between(24,36);
+    var paperS = between(24,42);
+    var paperL = between(90,94);
+
     return {
       "--ink-900": hsl(baseHue, between(22,40), bgL),
       "--ink-800": hsl(baseHue, between(22,38), surfaceL),
-      "--felt-700": hsl(feltHue, between(24,36), fillL),
+      "--felt-700": hsl(feltHue, feltFillS, fillL),
       "--felt-600": hsl(feltHue, between(24,36), borderL),
+      "--felt-border": hsl(feltHue, feltFillS, fillL - 10),
       "--text-color": hsl(baseHue, between(10,26), textL),
-      "--paper-100": hsl(accentHue, between(24,42), between(90,94)),
-      "--paper-200": hsl(accentHue, between(22,38), between(82,87)),
+      "--paper-100": hsl(accentHue, paperS, paperL),
+      "--paper-border": hsl(accentHue, paperS, paperL - 10),
       "--brass-500": hsl(accentHue, between(55,72), between(48,56)),
       "--brass-400": hsl(accentHue, between(50,68), between(60,68)),
       "--brass-600": hsl(accentHue, between(60,75), between(32,38)),
@@ -918,7 +913,7 @@
     // stock
     if (state.stock.length){
       stockBtn.className = "stock-btn";
-      stockBtn.innerHTML = '<span class="count-badge">'+state.stock.length+'</span>';
+      stockBtn.innerHTML = "";
     } else {
       stockBtn.className = "stock-btn empty";
       stockBtn.innerHTML = ICON_NEWGAME;
