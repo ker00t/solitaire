@@ -129,7 +129,10 @@
     color:var(--felt-border);
     opacity:0.7;
   }
-  .foundation .card{position:absolute; inset:0; margin:0;}
+  /* explicit width (not inset:0) so this always matches every other
+     card's size exactly, regardless of the foundation's own border
+     eating into inset:0's padding-box reference */
+  .foundation .card{position:absolute; top:0; left:0; width:var(--card-w); margin:0;}
 
   .tableau{
     display:grid;
@@ -257,7 +260,7 @@
     aspect-ratio:5/7;
   }
   .waste-slot{position:relative;}
-  .waste-slot .card{position:absolute; inset:0; margin:0;}
+  .waste-slot .card{position:absolute; top:0; left:0; width:var(--card-w); margin:0;}
   .waste-slot .empty-drop{width:100%; height:100%;}
 
   .stock-btn{
@@ -666,7 +669,7 @@
     var cards;
     if (pile === "tableau"){
       var card = state.tableau[col][idx];
-      if (!card.faceUp){ bounceEl(el); return; }
+      if (!card.faceUp) return; // face-down cards aren't playable — no bounce, just ignore the tap
       cards = state.tableau[col].slice(idx);
     } else if (pile === "foundation"){
       if (!state.foundations[col].length) return;
