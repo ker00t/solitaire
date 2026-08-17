@@ -107,7 +107,6 @@
     flex:0 0 auto;
     display:flex;
     flex-direction:column;
-    gap:14px;
   }
 
   .foundations{
@@ -224,6 +223,7 @@
   .undo-row{
     flex:0 0 auto;
     display:flex;
+    margin-bottom:40px;
   }
   #app.right .undo-row{justify-content:flex-end;}
   #app.left .undo-row{justify-content:flex-start;}
@@ -253,10 +253,13 @@
     align-items:center;
     justify-content:space-between;
     gap:10px;
+    margin-bottom:14px;
   }
   #app.left .controls-row{flex-direction:row;}
   #app.right .controls-row{flex-direction:row-reverse;}
   .stock-waste{flex:0 0 auto; display:flex; gap:10px;}
+  #app.right .stock-waste{margin-right:24px;}
+  #app.left .stock-waste{margin-left:24px;}
   #app.left .stock-waste{flex-direction:row;}
   #app.right .stock-waste{flex-direction:row-reverse;}
 
