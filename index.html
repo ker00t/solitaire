@@ -181,6 +181,7 @@
     padding:5% 6%;
     position:relative;
     cursor:pointer;
+    touch-action:none;
     transition:transform .12s ease, box-shadow .12s ease;
   }
   .card.up{
@@ -209,25 +210,29 @@
   }
   .suit-icon{width:1em; height:1em; display:inline-block; vertical-align:-0.14em;}
   .ui-icon{width:1em; height:1em; display:block;}
-  .card.selected{
-    transform:translateY(-8px);
-    box-shadow:0 0 0 2px var(--brass-400), 0 10px 14px rgba(0,0,0,0.45);
+  .card.dragging{
+    box-shadow:0 16px 22px rgba(0,0,0,0.45);
   }
-  .card.shake{animation:shake .32s ease;}
-  @keyframes shake{
-    0%,100%{transform:translateX(0);}
-    25%{transform:translateX(-5px);}
-    75%{transform:translateX(5px);}
+  .card.bounce{animation:bounce .32s ease;}
+  @keyframes bounce{
+    0%{transform:translateY(0);}
+    35%{transform:translateY(-10px);}
+    65%{transform:translateY(2px);}
+    100%{transform:translateY(0);}
   }
   @media (prefers-reduced-motion: reduce){
     .card{transition:none;}
-    .card.shake{animation:none;}
+    .card.bounce{animation:none;}
   }
 
   .empty-drop{
     border:1.5px dashed var(--felt-600);
     border-radius:7px;
     aspect-ratio:5/7;
+  }
+  .col.drop-target, .foundation.drop-target{
+    box-shadow:0 0 0 3px var(--brass-400) inset;
+    border-radius:7px;
   }
 
   /* ---------- controls row: primary, frequent actions (draw/waste/undo) —
@@ -578,31 +583,6 @@
     }
   }
 
-  function clearSelection(){ selection = null; render(); }
-
-  function selectTableau(col, idx){
-    var pile = state.tableau[col];
-    var card = pile[idx];
-    if (!card.faceUp) return;
-    // validate the run from idx..end is a legal alternating descending sequence
-    for (var i=idx; i<pile.length-1; i++){
-      var a = pile[i], b = pile[i+1];
-      if (SUIT_COLOR[a.suit]===SUIT_COLOR[b.suit] || a.rank !== b.rank+1) return;
-    }
-    selection = {pile:"tableau", col:col, idx:idx};
-    render();
-  }
-
-  function selectWaste(){
-    if (!state.waste.length) return;
-    selection = {pile:"waste", col:-1, idx:state.waste.length-1};
-    render();
-  }
-
-  function isSameSelection(pile,col,idx){
-    return selection && selection.pile===pile && selection.col===col && selection.idx===idx;
-  }
-
   function getSelectedCards(){
     if (!selection) return [];
     if (selection.pile==="waste") return [state.waste[state.waste.length-1]];
@@ -617,22 +597,6 @@
     var cards = pile.splice(selection.idx);
     flipExposed(selection.col);
     return cards;
-  }
-
-  function tryAutoFoundation(cards){
-    if (cards.length !== 1) return false;
-    var card = cards[0];
-    if (canStackFoundation(card, card.suit)){
-      pushHistory();
-      removeSelectedFromSource();
-      state.foundations[card.suit].push(card);
-      moveCount++;
-      selection = null;
-      render();
-      checkWin();
-      return true;
-    }
-    return false;
   }
 
   function moveSelectionToTableau(destCol){
@@ -663,55 +627,181 @@
     return true;
   }
 
-  function shakeEl(el){
+  function bounceEl(el){
     if (!el) return;
-    el.classList.remove("shake");
+    el.classList.remove("bounce");
     void el.offsetWidth;
-    el.classList.add("shake");
+    el.classList.add("bounce");
   }
 
-  function onTableauTap(col, idx, isTopMost, ev){
-    var pile = state.tableau[col];
-    var card = pile[idx];
-    if (selection){
-      if (isSameSelection("tableau", col, idx)){
-        if (!tryAutoFoundation(getSelectedCards())) clearSelection();
-        return;
+  // Tap a card: if it has any legal move, play it automatically
+  // (foundation preferred, else the first open tableau column).
+  // If it has none, bounce it in place. Precise placement is done by
+  // dragging instead — see the pointer-drag machinery below.
+  function findAutoDestination(cards, excludeCol){
+    if (cards.length === 1 && canStackFoundation(cards[0], cards[0].suit)){
+      return {type:"foundation", suit:cards[0].suit};
+    }
+    for (var c=0; c<7; c++){
+      if (c === excludeCol) continue;
+      if (canStackTableau(cards[0], c)) return {type:"tableau", col:c};
+    }
+    return null;
+  }
+
+  function performTapMove(pile, col, idx, el){
+    var cards;
+    if (pile === "tableau"){
+      var card = state.tableau[col][idx];
+      if (!card.faceUp){ bounceEl(el); return; }
+      cards = state.tableau[col].slice(idx);
+    } else {
+      if (!state.waste.length) return;
+      cards = [state.waste[state.waste.length-1]];
+    }
+    var dest = findAutoDestination(cards, pile==="tableau" ? col : -1);
+    if (!dest){ bounceEl(el); return; }
+    selection = pile==="tableau"
+      ? {pile:"tableau", col:col, idx:idx}
+      : {pile:"waste", col:-1, idx:state.waste.length-1};
+    if (dest.type === "foundation") moveSelectionToFoundation(dest.suit);
+    else moveSelectionToTableau(dest.col);
+  }
+
+  // ---------- drag-and-drop: lets the player choose an exact
+  // destination instead of the automatic one. A pointerdown starts
+  // tracking; if the pointer moves past a small threshold before
+  // release, it becomes a real drag (cards follow the pointer via
+  // fixed-position + translate on the live DOM nodes — render()
+  // naturally discards those inline styles on the next redraw, so no
+  // separate ghost/cleanup bookkeeping is needed). Release with no
+  // meaningful movement is treated as a tap instead. ----------
+  var drag = null;
+
+  function onCardPointerDown(pile, col, idx){
+    return function(ev){
+      if (ev.pointerType === "mouse" && ev.button !== 0) return;
+      var faceUp = pile === "waste" || !!(state.tableau[col][idx] && state.tableau[col][idx].faceUp);
+      drag = {
+        pile: pile, col: col, idx: idx,
+        cards: faceUp ? (pile==="tableau" ? state.tableau[col].slice(idx) : [state.waste[state.waste.length-1]]) : null,
+        startX: ev.clientX, startY: ev.clientY,
+        active: false,
+        dragEls: null,
+        sourceEl: ev.currentTarget
+      };
+      try { ev.currentTarget.setPointerCapture(ev.pointerId); } catch(e){}
+      ev.preventDefault();
+      window.addEventListener("pointermove", onDragMove);
+      window.addEventListener("pointerup", onDragEnd);
+      window.addEventListener("pointercancel", onDragCancel);
+    };
+  }
+
+  function activateDrag(){
+    drag.active = true;
+    var els;
+    if (drag.pile === "waste"){
+      els = [wasteSlot.querySelector(".card")];
+    } else {
+      var colEl = tableauEl.children[drag.col];
+      els = Array.prototype.slice.call(colEl.querySelectorAll(".card"), drag.idx);
+    }
+    drag.dragEls = els;
+    els.forEach(function(el, i){
+      var r = el.getBoundingClientRect();
+      el.style.position = "fixed";
+      el.style.margin = "0";
+      el.style.left = r.left+"px";
+      el.style.top = r.top+"px";
+      el.style.width = r.width+"px";
+      el.style.height = r.height+"px";
+      el.style.zIndex = 500+i;
+      el.style.pointerEvents = "none";
+      el.classList.add("dragging");
+    });
+  }
+
+  function positionDragEls(x, y){
+    var dx = x-drag.startX, dy = y-drag.startY;
+    drag.dragEls.forEach(function(el){
+      el.style.transform = "translate("+dx+"px,"+dy+"px) scale(1.03)";
+    });
+  }
+
+  function findDropTarget(x, y){
+    var el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    var foundationEl = el.closest(".foundation");
+    if (foundationEl) return {type:"foundation", suit:foundationEl.dataset.suit, el:foundationEl};
+    var colEl = el.closest(".col");
+    if (colEl) return {type:"tableau", col:Number(colEl.dataset.col), el:colEl};
+    return null;
+  }
+
+  function clearDropHighlight(){
+    var els = document.querySelectorAll(".drop-target");
+    for (var i=0;i<els.length;i++) els[i].classList.remove("drop-target");
+  }
+
+  function updateDropHighlight(x, y){
+    clearDropHighlight();
+    if (!drag.cards) return;
+    var target = findDropTarget(x, y);
+    if (!target) return;
+    var legal = target.type === "foundation"
+      ? (drag.cards.length===1 && canStackFoundation(drag.cards[0], target.suit))
+      : (canStackTableau(drag.cards[0], target.col) && !(drag.pile==="tableau" && drag.col===target.col));
+    if (legal) target.el.classList.add("drop-target");
+  }
+
+  function onDragMove(ev){
+    if (!drag) return;
+    var dx = ev.clientX-drag.startX, dy = ev.clientY-drag.startY;
+    if (!drag.active){
+      if (drag.cards && Math.hypot(dx,dy) > 8) activateDrag();
+      else return;
+    }
+    positionDragEls(ev.clientX, ev.clientY);
+    updateDropHighlight(ev.clientX, ev.clientY);
+  }
+
+  function endPointerTracking(){
+    window.removeEventListener("pointermove", onDragMove);
+    window.removeEventListener("pointerup", onDragEnd);
+    window.removeEventListener("pointercancel", onDragCancel);
+  }
+
+  function onDragEnd(ev){
+    endPointerTracking();
+    if (!drag) return;
+    var d = drag;
+    drag = null;
+    clearDropHighlight();
+    if (d.active){
+      var target = findDropTarget(ev.clientX, ev.clientY);
+      var moved = false;
+      if (target){
+        selection = d.pile==="tableau" ? {pile:"tableau", col:d.col, idx:d.idx} : {pile:"waste", col:-1, idx:state.waste.length-1};
+        moved = target.type === "foundation" ? moveSelectionToFoundation(target.suit) : moveSelectionToTableau(target.col);
       }
-      if (moveSelectionToTableau(col)) return;
-      if (card && card.faceUp){
-        selectTableau(col, idx);
-      } else {
-        shakeEl(ev.currentTarget);
+      if (!moved){
+        render();
+        var el = d.pile==="tableau"
+          ? (tableauEl.children[d.col] && tableauEl.children[d.col].children[d.idx])
+          : wasteSlot.querySelector(".card");
+        bounceEl(el);
       }
-      return;
-    }
-    selectTableau(col, idx);
-  }
-
-  function onEmptyColTap(col){
-    if (selection){
-      if (moveSelectionToTableau(col)) return;
-      clearSelection();
+    } else {
+      performTapMove(d.pile, d.col, d.idx, d.sourceEl);
     }
   }
 
-  function onWasteTap(){
-    if (selection){
-      if (isSameSelection("waste", -1, state.waste.length-1)){
-        if (!tryAutoFoundation(getSelectedCards())) clearSelection();
-        return;
-      }
-      selectWaste();
-      return;
-    }
-    selectWaste();
-  }
-
-  function onFoundationTap(suit){
-    if (selection){
-      if (!moveSelectionToFoundation(suit)) clearSelection();
-    }
+  function onDragCancel(){
+    endPointerTracking();
+    if (drag && drag.active) render();
+    drag = null;
+    clearDropHighlight();
   }
 
   function drawCard(){
@@ -767,6 +857,7 @@
     SUITS.forEach(function(suit){
       var slot = document.createElement("div");
       slot.className = "foundation";
+      slot.dataset.suit = suit;
       var pile = state.foundations[suit];
       if (pile.length){
         var top = pile[pile.length-1];
@@ -774,7 +865,6 @@
       } else {
         slot.innerHTML = suitSvg(suit, "ghost");
       }
-      slot.addEventListener("click", function(s){ return function(){ onFoundationTap(s); }; }(suit));
       foundationsEl.appendChild(slot);
     });
 
@@ -783,21 +873,20 @@
     state.tableau.forEach(function(pile, col){
       var colEl = document.createElement("div");
       colEl.className = "col";
+      colEl.dataset.col = col;
       if (!pile.length){
         var drop = document.createElement("div");
         drop.className = "empty-drop";
-        drop.addEventListener("click", function(c){ return function(){ onEmptyColTap(c); }; }(col));
         colEl.appendChild(drop);
       } else {
         var prevFaceUp = null;
         pile.forEach(function(card, idx){
-          var isSel = selection && selection.pile==="tableau" && selection.col===col && idx >= selection.idx;
-          var el = cardEl(card, isSel ? "selected" : "");
+          var el = cardEl(card, "");
           if (prevFaceUp !== null){
             el.style.marginTop = (prevFaceUp ? "-102%" : "-118%");
           }
           prevFaceUp = card.faceUp;
-          el.addEventListener("click", function(c,i){ return function(ev){ onTableauTap(c,i,i===pile.length-1,ev); }; }(col, idx));
+          el.addEventListener("pointerdown", onCardPointerDown("tableau", col, idx));
           colEl.appendChild(el);
         });
       }
@@ -808,9 +897,8 @@
     wasteSlot.innerHTML = "";
     if (state.waste.length){
       var wTop = state.waste[state.waste.length-1];
-      var isSelW = selection && selection.pile==="waste";
-      var wEl = cardEl(wTop, isSelW ? "selected" : "");
-      wEl.addEventListener("click", onWasteTap);
+      var wEl = cardEl(wTop, "");
+      wEl.addEventListener("pointerdown", onCardPointerDown("waste", -1, state.waste.length-1));
       wasteSlot.appendChild(wEl);
     } else {
       var wDrop = document.createElement("div");
