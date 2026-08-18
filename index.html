@@ -698,12 +698,20 @@
     // job of contrasting against the always-light card paper
     var heading = {h:brass.h, s:Math.max(brass.s,50), l: darkMode ? between(62,74) : between(28,40)};
     var onBrass = {h:ink900.h, s:Math.min(100,ink900.s+10), l: brass.l >= 50 ? 12 : 92};
-    var suitWarm = {h:suitWarmC.h, s:Math.max(suitWarmC.s,45), l:Math.min(Math.max(suitWarmC.l,38),55)};
-    var suitCool = {h:suitCoolC.h, s:Math.max(suitCoolC.s,35), l:Math.min(Math.max(suitCoolC.l,18),32)};
+    // Suit colors aren't locked to a traditional bright/dark (red vs
+    // black) split — both share the same lightness band here, so
+    // which real palette color ends up more or less vivid is whatever
+    // the palette actually gave us, not a rule that always makes one
+    // suit "the pale one" and the other "the near-black one." Paper
+    // is fixed white now (see above), so ensureContrast below will
+    // still darken either one as needed for real legibility — this
+    // clamp just keeps the *starting* point sane.
+    var suitWarm = {h:suitWarmC.h, s:Math.max(suitWarmC.s,40), l:Math.min(Math.max(suitWarmC.l,15),65)};
+    var suitCool = {h:suitCoolC.h, s:Math.max(suitCoolC.s,40), l:Math.min(Math.max(suitCoolC.l,15),65)};
     // some real palettes are near-monochrome (e.g. all blues), which
-    // would otherwise leave the red-suit and black-suit colors too
-    // close in hue to tell apart at a glance — push suitCool further
-    // around the wheel, away from suitWarm, until they clear a floor
+    // would otherwise leave the two suit colors too close in hue to
+    // tell apart at a glance — push suitCool further around the
+    // wheel, away from suitWarm, until they clear a floor
     var MIN_SUIT_HUE_SEP = 70;
     var suitSep = ((suitCool.h - suitWarm.h + 540) % 360) - 180;
     if (Math.abs(suitSep) < MIN_SUIT_HUE_SEP){
