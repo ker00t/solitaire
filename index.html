@@ -1418,7 +1418,23 @@
     }, 100);
   });
 
+  // When wrapped as a native app (Capacitor injects window.Capacitor at
+  // runtime — absent entirely on the plain web version, so this is a
+  // no-op there), the OS status bar has no browser chrome around it to
+  // pick readable icon contrast on its own. Match its icon color to
+  // whichever mood's theme just got applied.
+  function syncStatusBar(mood){
+    var cap = window.Capacitor;
+    if (!cap || !cap.isNativePlatform || !cap.isNativePlatform()) return;
+    var StatusBar = cap.Plugins && cap.Plugins.StatusBar;
+    if (!StatusBar) return;
+    // counterintuitively, Style.Dark means "style suited to a dark
+    // background" (light icons), and Style.Light means the opposite
+    StatusBar.setStyle({style: MOOD_DARK[mood] ? "DARK" : "LIGHT"});
+  }
+
   applyPalette(randomPalette());
+  syncStatusBar(getTimeOfDay());
   newGame();
 })();
 </script>

@@ -1,0 +1,10 @@
+{
+  "appId": "com.ker00t.solitaire",
+  "appName": "Simple Solitaire",
+  "webDir": "www",
+  "backgroundColor": "#14261C",
+  "ios": {
+    "scrollEnabled": false,
+    "backgroundColor": "#14261C"
+  }
+}
