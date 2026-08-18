@@ -8,7 +8,6 @@
 <style>
   :root{
     --ink-900:#12211c;
-    --ink-800:#1b2f28;
     --felt-700:#2c4238;
     --felt-600:#3a5548;
     --felt-border:#1f2f27;
@@ -18,8 +17,9 @@
     --brass-400:#ddb968;
     --brick-600:#a6432f;
     --charcoal-900:#26221d;
-    --brass-600:#8a6f2f;
     --text-color:#f4ecd8;
+    --heading-color:#c96a4a;
+    --on-brass:#12211c;
     --gap: 6px;
     --topbar-h: 52px;
     /* single source of truth for every card-sized element (tableau,
@@ -74,7 +74,7 @@
     font-size:26px;
     font-weight:700;
     letter-spacing:-0.02em;
-    color:var(--brick-600);
+    color:var(--heading-color);
     text-align:center;
     cursor:pointer;
     transition:transform .12s ease;
@@ -365,7 +365,7 @@
     border-radius:10px;
     border:none;
     background:var(--brass-500);
-    color:var(--ink-900);
+    color:var(--on-brass);
     font-weight:700;
     font-size:15px;
     cursor:pointer;
@@ -466,19 +466,124 @@
   }
   function between(min,max){ return min + Math.random()*(max-min); }
 
-  // Coolors-style: pick a base hue + a harmony scheme, then derive every
-  // role's hue/sat/light from it. Real coolors palettes aren't always a
-  // dark background with light accents — about half the time this rolls
-  // a light-background palette instead, so ink/surface/border/text form
-  // a 4-step staircase that stays within ONE family (all-dark or
-  // all-light) while --text-color always sits at the opposite pole from
-  // the background, guaranteeing readable contrast either way. Card
-  // paper and the two suit-color groups are unaffected by mode — cards
-  // stay light paper with a guaranteed lightness gap between the
-  // red/black suit groups regardless of which way the theme goes.
+  // ---------- WCAG 2.1 contrast verification ----------
+  // Every generated palette gets checked against real contrast math
+  // (not just eyeballed lightness gaps) and repaired if it falls
+  // short, so "looks about right" can't slip through as "fails for
+  // someone with low vision."
+  function hslToRgb(h,s,l){
+    h=((h%360)+360)%360; s=Math.max(0,Math.min(100,s))/100; l=Math.max(0,Math.min(100,l))/100;
+    var c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs((h/60)%2-1)), m=l-c/2, r,g,b;
+    if (h<60){r=c;g=x;b=0;} else if (h<120){r=x;g=c;b=0;} else if (h<180){r=0;g=c;b=x;}
+    else if (h<240){r=0;g=x;b=c;} else if (h<300){r=x;g=0;b=c;} else {r=c;g=0;b=x;}
+    return [(r+m)*255,(g+m)*255,(b+m)*255];
+  }
+  function relLuminance(rgb){
+    var a = rgb.map(function(v){
+      v/=255;
+      return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4);
+    });
+    return 0.2126*a[0]+0.7152*a[1]+0.0722*a[2];
+  }
+  function contrastOf(c1,c2){
+    var L1=relLuminance(hslToRgb(c1.h,c1.s,c1.l));
+    var L2=relLuminance(hslToRgb(c2.h,c2.s,c2.l));
+    var hi=Math.max(L1,L2), lo=Math.min(L1,L2);
+    return (hi+0.05)/(lo+0.05);
+  }
+  // Nudges fg's lightness away from bg (toward whichever pole has
+  // more relative luminance headroom) until the WCAG contrast ratio
+  // target is met, plus a small safety margin — hsl() rounds lightness
+  // to a whole number when it's stringified for CSS, which can shave
+  // a few hundredths off a ratio that only just cleared the target.
+  // 4.5:1 = AA for normal text; 3:1 = AA for UI-component borders
+  // (WCAG 1.4.11) and large text. Direction is chosen from actual
+  // relative luminance, not raw HSL lightness — the two can disagree
+  // by hue (a "light" blue can be less luminant than a "darker"
+  // yellow), which was silently pushing some colors the wrong way.
+  function ensureContrast(fg, bg, target){
+    var bgLum = relLuminance(hslToRgb(bg.h, bg.s, bg.l));
+    var fgLum = relLuminance(hslToRgb(fg.h, fg.s, fg.l));
+    var dir = fgLum >= bgLum ? 1 : -1;
+    var safeTarget = target + 0.15;
+    var iter = 0;
+    // Normally only fg moves (further toward whichever pole it's
+    // already leaning). But if fg starts on the wrong side entirely —
+    // e.g. a saturated yellow-green background reads far brighter
+    // than its HSL "lightness" suggests, so a foreground picked to be
+    // "the light one" can end up stuck near-white with no room left
+    // to out-brighten it — pin fg at its exhausted extreme and ease
+    // bg the opposite way instead of giving up.
+    while (contrastOf(fg,bg) < safeTarget && iter < 200){
+      var fgHasRoom = dir>0 ? fg.l<100 : fg.l>0;
+      if (fgHasRoom){
+        fg.l = Math.max(0, Math.min(100, fg.l + dir*0.6));
+      } else {
+        bg.l = Math.max(0, Math.min(100, bg.l - dir*0.6));
+      }
+      iter++;
+    }
+    return fg;
+  }
+
+  // ---------- time-of-day themes ----------
+  // Reads the player's own device clock (their local time, not a
+  // server's) and picks a curated hue/saturation/lightness recipe for
+  // that part of the day, rather than rolling a uniformly random
+  // palette. Each recipe fixes a light/dark bias that matches how
+  // that time of day actually looks (morning and daytime read bright,
+  // dusk and night read dark) plus a handful of hue "bands" (sunrise
+  // peach, midday sky-blue, sunset plum, midnight indigo, etc.) so a
+  // reload still lands on a genuinely different-but-appropriate look
+  // each time instead of one fixed palette per period.
+  function getTimeOfDay(){
+    var h = new Date().getHours();
+    if (h >= 5 && h < 11) return "morning";
+    if (h >= 11 && h < 17) return "daytime";
+    if (h >= 17 && h < 20) return "dusk";
+    return "night";
+  }
+
+  var TIME_THEMES = {
+    morning: { // soft pastel sunrise — light, airy, gentle
+      dark:false,
+      bgHueBands:[[18,42],[344,368],[46,62]],
+      bgSat:[16,30], bgL:[91,97],
+      accentSat:[48,66], accentL:[56,68],
+      suitHueBands:[[3,22],[150,172]]
+    },
+    daytime: { // vivid clear daylight — bright, saturated, energetic
+      dark:false,
+      bgHueBands:[[196,214],[92,138],[14,34]],
+      bgSat:[28,46], bgL:[88,95],
+      accentSat:[60,80], accentL:[48,60],
+      suitHueBands:[[358,382],[128,152]]
+    },
+    dusk: { // warm golden-hour glow — dark but warm, not moody
+      dark:true,
+      bgHueBands:[[8,28],[282,318],[30,46]],
+      bgSat:[34,50], bgL:[15,25],
+      accentSat:[56,76], accentL:[52,64],
+      suitHueBands:[[350,374],[298,322]]
+    },
+    night: { // deep moody midnight — cool, jewel-toned, low-lit
+      dark:true,
+      bgHueBands:[[220,248],[258,284],[182,202]],
+      bgSat:[26,40], bgL:[7,15],
+      accentSat:[42,60], accentL:[46,58],
+      suitHueBands:[[340,364],[152,176]]
+    }
+  };
+
+  function pickBand(bands){
+    var b = bands[Math.floor(Math.random()*bands.length)];
+    return between(b[0], b[1]);
+  }
+
   function randomPalette(){
-    var darkMode = Math.random() < 0.5;
-    var baseHue = Math.floor(Math.random()*360);
+    var theme = TIME_THEMES[getTimeOfDay()];
+    var darkMode = theme.dark;
+    var baseHue = pickBand(theme.bgHueBands);
     var schemes = ["mono","analogous","complementary","triadic","splitComplementary"];
     var scheme = schemes[Math.floor(Math.random()*schemes.length)];
     var accentHue = baseHue;
@@ -487,39 +592,58 @@
     else if (scheme === "triadic") accentHue = baseHue + 120;
     else if (scheme === "splitComplementary") accentHue = baseHue + 150;
     var feltHue = baseHue + 15;
-    var suitHueWarm = Math.floor(Math.random()*360);
-    var suitHueCool = suitHueWarm + between(90,270);
-
     var dir = darkMode ? 1 : -1;
-    var bgL = darkMode ? between(8,18) : between(90,98);
-    var surfaceL = bgL + dir*between(6,10);
-    var fillL = surfaceL + dir*between(6,10);
-    var borderL = fillL + dir*between(8,14);
-    var textL = darkMode ? between(90,98) : between(8,20);
 
-    // felt-border and paper-border are exact darker shades of felt-700
-    // and paper-100 (same hue+saturation, lightness reduced) — every
-    // dashed outline and card-back border reuses these two tokens so
-    // they're always a shade of their own surface, never an unrelated
-    // accent color.
-    var feltFillS = between(24,36);
-    var paperS = between(24,42);
-    var paperL = between(90,94);
+    var ink900 = {h:baseHue, s:between(theme.bgSat[0],theme.bgSat[1]), l:between(theme.bgL[0],theme.bgL[1])};
+    var fillL = ink900.l + dir*between(12,20);
+    var felt700 = {h:feltHue, s:between(24,36), l:fillL};
+    var text = {h:baseHue, s:between(10,26), l: darkMode ? between(90,98) : between(8,20)};
+    // heading-color is its own token (not reused for suit text) since
+    // it only ever has to contrast against the page background, while
+    // the suit colors below have the separate, sometimes-conflicting
+    // job of contrasting against the always-light card paper
+    var heading = {h:accentHue, s:between(55,75), l: darkMode ? between(62,74) : between(28,40)};
+    var paper = {h:accentHue, s:between(24,42), l:between(90,94)};
+    var brass = {h:accentHue, s:between(theme.accentSat[0],theme.accentSat[1]), l:between(theme.accentL[0],theme.accentL[1])};
+    var brass400 = {h:accentHue, s:Math.max(0,brass.s-6), l:Math.min(96,brass.l+14)};
+    var onBrass = {h:baseHue, s:Math.min(100,ink900.s+10), l: brass.l >= 50 ? 12 : 92};
+
+    var suitWarm = {h:pickBand([theme.suitHueBands[0]]), s:between(55,75), l:between(40,52)};
+    var suitCool = {h:pickBand([theme.suitHueBands[1]]), s:between(45,65), l:between(20,32)};
+
+    // felt-border/paper-border are shades of felt-700/paper-100 (same
+    // hue+sat, lightness pushed further along the same staircase
+    // direction) so every dashed outline and card-back border reads
+    // as "a shade of its own surface," never an unrelated accent color
+    var feltBorder = {h:feltHue, s:felt700.s, l:felt700.l + dir*between(10,16)};
+    var paperBorder = {h:accentHue, s:paper.s, l:paper.l - between(8,12)};
+
+    // ---- accessibility repairs (WCAG 2.1 AA) ----
+    ensureContrast(text, ink900, 4.5);     // page text/icons vs page bg
+    ensureContrast(text, felt700, 4.5);    // button text/icons vs their fill
+    ensureContrast(heading, ink900, 4.5);  // title vs page bg
+    ensureContrast(onBrass, brass, 4.5);   // win-dialog button text vs its fill
+    ensureContrast(suitWarm, paper, 4.5);  // red-suit rank/icon vs card face
+    ensureContrast(suitCool, paper, 4.5);  // black-suit rank/icon vs card face
+    ensureContrast(feltBorder, felt700, 3.0); // card-back/button border vs its fill
+    ensureContrast(feltBorder, ink900, 3.0);  // same border where it shows on bare page bg
+    ensureContrast(paperBorder, paper, 3.0);  // card-face border vs its fill
+    ensureContrast(brass400, ink900, 3.0);    // drag drop-target outline vs page bg
 
     return {
-      "--ink-900": hsl(baseHue, between(22,40), bgL),
-      "--ink-800": hsl(baseHue, between(22,38), surfaceL),
-      "--felt-700": hsl(feltHue, feltFillS, fillL),
-      "--felt-600": hsl(feltHue, between(24,36), borderL),
-      "--felt-border": hsl(feltHue, feltFillS, fillL - 10),
-      "--text-color": hsl(baseHue, between(10,26), textL),
-      "--paper-100": hsl(accentHue, paperS, paperL),
-      "--paper-border": hsl(accentHue, paperS, paperL - 10),
-      "--brass-500": hsl(accentHue, between(55,72), between(48,56)),
-      "--brass-400": hsl(accentHue, between(50,68), between(60,68)),
-      "--brass-600": hsl(accentHue, between(60,75), between(32,38)),
-      "--brick-600": hsl(suitHueWarm, between(55,75), between(40,52)),
-      "--charcoal-900": hsl(suitHueCool, between(45,65), between(18,30))
+      "--ink-900": hsl(ink900.h, ink900.s, ink900.l),
+      "--felt-700": hsl(felt700.h, felt700.s, felt700.l),
+      "--felt-600": hsl(feltHue, between(24,36), fillL + dir*between(4,8)),
+      "--felt-border": hsl(feltBorder.h, feltBorder.s, feltBorder.l),
+      "--text-color": hsl(text.h, text.s, text.l),
+      "--heading-color": hsl(heading.h, heading.s, heading.l),
+      "--paper-100": hsl(paper.h, paper.s, paper.l),
+      "--paper-border": hsl(paperBorder.h, paperBorder.s, paperBorder.l),
+      "--brass-500": hsl(brass.h, brass.s, brass.l),
+      "--brass-400": hsl(brass400.h, brass400.s, brass400.l),
+      "--on-brass": hsl(onBrass.h, onBrass.s, onBrass.l),
+      "--brick-600": hsl(suitWarm.h, suitWarm.s, suitWarm.l),
+      "--charcoal-900": hsl(suitCool.h, suitCool.s, suitCool.l)
     };
   }
 
