@@ -1337,9 +1337,7 @@
 
   stockBtn.addEventListener("click", drawCard);
   undoBtn.addEventListener("click", undo);
-  newGameBtn.addEventListener("click", function(){
-    if (confirm("Start a new game? Current progress will be lost.")) newGame();
-  });
+  newGameBtn.addEventListener("click", newGame);
   handSwitch.addEventListener("click", function(){
     handMode = handMode === "right" ? "left" : "right";
     render();
