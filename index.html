@@ -73,10 +73,22 @@
      player's thumb favors, same as the rest of the controls — left-
      handed keeps it flush against the left edge, right-handed flips
      it to the right. ---------- */
+  /* Centering the title purely within .topbar's own box would still
+     look top-heavy: .play-group starts with an undo-row that reserves
+     ~86px (40px min-height + 40px margin-bottom) even while the undo
+     button itself is invisible (visibility:hidden, not display:none,
+     so the layout never jumps when it appears), plus .surface's own
+     6px top padding — 92px of real, structural gap that follows
+     immediately after .topbar but isn't part of it. Padding the top
+     by that same 92px (on top of the actual visual gap G) makes the
+     title's midpoint land at the midpoint of the FULL empty span up
+     to where the foundations actually appear, not just within
+     .topbar's own shorter box — and it works out regardless of the
+     title's own rendered height, which changes with viewport width. */
   .topbar{
     flex:0 0 auto;
     display:flex;
-    padding:calc(30px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 6px max(16px, env(safe-area-inset-left));
+    padding:calc(env(safe-area-inset-top) + 92px + 28px) max(16px, env(safe-area-inset-right)) 28px max(16px, env(safe-area-inset-left));
   }
   #app.left .topbar{justify-content:flex-start;}
   #app.right .topbar{justify-content:flex-end;}
@@ -87,7 +99,7 @@
     font-size:clamp(52px, 20vw, 80px);
     line-height:0.83;
     letter-spacing:-0.03em;
-    color:#e119d6;
+    color:var(--heading-color);
     text-align:left;
     cursor:pointer;
     transition:transform .12s ease;
@@ -113,14 +125,12 @@
     display:flex;
     flex-direction:column;
   }
-  /* lead is a FIXED offset (not flex-grow) so the play group's top
-     position never depends on its own content height — otherwise a
-     taller tableau or the undo button appearing/disappearing would
-     shrink/grow this spacer and shift the whole play area. trail is
-     the only elastic one, absorbing whatever's left before the
+  /* the play group's lead-in space now lives in .topbar's own height
+     (title centers within it) rather than a separate spacer here, so
+     its top position stays fixed regardless of tableau/undo-button
+     content changes below. trail absorbs whatever's left before the
      bottom bar. */
   .spacer{flex:1 1 0%;}
-  .spacer-lead{flex:0 0 auto; height:calc(var(--app-height, 100dvh) * 0.13);}
   .spacer-trail{flex-grow:1;}
   .play-group{
     flex:0 0 auto;
@@ -400,7 +410,6 @@
 
   <div class="surface">
     <div class="table">
-      <div class="spacer spacer-lead"></div>
       <div class="play-group">
         <div class="undo-row">
           <button class="undo-btn" id="undoBtn" title="Undo"></button>
