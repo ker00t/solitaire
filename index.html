@@ -1594,9 +1594,44 @@
     StatusBar.setStyle({style: MOOD_DARK[mood] ? "DARK" : "LIGHT"});
   }
 
+  // Self-hosted OTA updates (no cloud service): checks a small JSON
+  // manifest on the same Vercel deployment the web version lives on
+  // for a newer web-bundle version, downloads it, and swaps it in on
+  // next launch — same content pipeline as the website, no App Store
+  // review needed for ordinary gameplay/UI changes. Runs once per
+  // launch, fails silently offline, and never blocks the game the
+  // player is already looking at.
+  var OTA_MANIFEST_URL = "https://solitaire-snowy.vercel.app/ota/latest.json";
+  function checkForOTAUpdate(){
+    var cap = window.Capacitor;
+    if (!cap || !cap.isNativePlatform || !cap.isNativePlatform()) return;
+    var Updater = cap.Plugins && cap.Plugins.CapacitorUpdater;
+    if (!Updater) return;
+    // Required ack that this bundle loaded successfully — skipping it
+    // makes the plugin roll back to the last-known-good bundle.
+    Updater.notifyAppReady().catch(function(){});
+    fetch(OTA_MANIFEST_URL, {cache: "no-store"})
+      .then(function(res){ return res.json(); })
+      .then(function(manifest){
+        return Updater.current().then(function(cur){
+          if (!manifest || !manifest.version || !manifest.url) return;
+          if (cur && cur.bundle && cur.bundle.version === manifest.version) return;
+          return Updater.download({
+            version: manifest.version,
+            url: manifest.url,
+            checksum: manifest.checksum
+          }).then(function(bundle){
+            return Updater.set({id: bundle.id});
+          });
+        });
+      })
+      .catch(function(){}); // offline or unreachable — just play the current bundle
+  }
+
   applyPalette(randomPalette());
   syncStatusBar(getTimeOfDay());
   newGame();
+  checkForOTAUpdate();
 })();
 </script>
 </body>

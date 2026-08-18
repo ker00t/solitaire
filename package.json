@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "sync:www": "mkdir -p www && cp index.html favicon.png www/",
     "ios:sync": "npm run sync:www && npx cap sync ios",
-    "ios:open": "npm run ios:sync && npx cap open ios"
+    "ios:open": "npm run ios:sync && npx cap open ios",
+    "ota:publish": "sh scripts/ota-publish.sh"
   },
   "repository": {
     "type": "git",
@@ -25,7 +26,8 @@
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
-    "@capacitor/status-bar": "^8.0.3"
+    "@capacitor/status-bar": "^8.0.3",
+    "@capgo/capacitor-updater": "^8.51.13"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5"

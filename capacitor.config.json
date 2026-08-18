@@ -6,5 +6,10 @@
   "ios": {
     "scrollEnabled": false,
     "backgroundColor": "#14261C"
+  },
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": false
+    }
   }
 }
