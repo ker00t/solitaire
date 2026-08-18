@@ -120,11 +120,12 @@
     flex:0 0 auto;
   }
   .foundation{
+    --border-w:1.5px;
     width:var(--card-w);
     flex:0 0 auto;
     aspect-ratio:5/7;
     border-radius:8px;
-    border:1.5px dashed var(--felt-border);
+    border:var(--border-w) dashed var(--felt-border);
     display:flex; align-items:center; justify-content:center;
     position:relative;
   }
@@ -136,9 +137,12 @@
     opacity:0.7;
   }
   /* explicit width (not inset:0) so this always matches every other
-     card's size exactly, regardless of the foundation's own border
-     eating into inset:0's padding-box reference */
-  .foundation .card{position:absolute; top:0; left:0; width:var(--card-w); margin:0;}
+     card's size exactly. top/left are pulled in by the border width
+     because an absolutely positioned child's containing block is the
+     padding box, not the border box — without this offset the card
+     sits inset from its own foundation's top-left border, leaving a
+     sliver of dashed outline visible even once the slot is filled */
+  .foundation .card{position:absolute; top:calc(-1 * var(--border-w)); left:calc(-1 * var(--border-w)); width:var(--card-w); margin:0;}
 
   .tableau{
     display:grid;
@@ -1216,13 +1220,24 @@
       slot.className = "foundation";
       slot.dataset.suit = suit;
       var pile = state.foundations[suit];
+      // ghost is always present underneath (not just when empty) so the
+      // slot never reads as blank while the incoming top card is still
+      // mid-flight (it's rendered off in its origin position via a FLIP
+      // transform for the first ~200ms and hasn't visually arrived yet)
+      slot.insertAdjacentHTML("beforeend", suitSvg(suit, "ghost"));
       if (pile.length){
+        // the previous top card stays rendered underneath too, so once
+        // there's more than one card in the pile the slot shows a real
+        // card (not just the ghost) throughout the incoming card's flight
+        if (pile.length >= 2){
+          var under = cardEl(pile[pile.length-2]);
+          under.style.pointerEvents = "none";
+          slot.appendChild(under);
+        }
         var top = pile[pile.length-1];
         var topEl = cardEl(top);
         topEl.addEventListener("pointerdown", onCardPointerDown("foundation", suit, -1));
         slot.appendChild(topEl);
-      } else {
-        slot.innerHTML = suitSvg(suit, "ghost");
       }
       foundationsEl.appendChild(slot);
     });
@@ -1381,14 +1396,26 @@
   // gets an extra delayed re-check since the viewport doesn't always
   // finish settling by the time that event fires.
   function setAppHeight(){
-    document.documentElement.style.setProperty("--app-height", window.innerHeight + "px");
+    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    document.documentElement.style.setProperty("--app-height", h + "px");
   }
   setAppHeight();
   window.addEventListener("resize", setAppHeight);
+  if (window.visualViewport){
+    window.visualViewport.addEventListener("resize", setAppHeight);
+  }
+  // Some mobile browsers take much longer than a single resize event
+  // to settle the viewport back to its pre-rotation size after
+  // rotating back — a couple of fixed-delay rechecks weren't enough
+  // in practice, so keep re-measuring for a while instead of guessing
+  // one "safe" delay.
   window.addEventListener("orientationchange", function(){
-    setAppHeight();
-    setTimeout(setAppHeight, 120);
-    setTimeout(setAppHeight, 400);
+    var tries = 0;
+    var iv = setInterval(function(){
+      setAppHeight();
+      tries++;
+      if (tries > 15) clearInterval(iv);
+    }, 100);
   });
 
   applyPalette(randomPalette());
