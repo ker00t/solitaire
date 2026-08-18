@@ -528,14 +528,8 @@
 
   // ---------- time-of-day themes ----------
   // Reads the player's own device clock (their local time, not a
-  // server's) and picks a curated hue/saturation/lightness recipe for
-  // that part of the day, rather than rolling a uniformly random
-  // palette. Each recipe fixes a light/dark bias that matches how
-  // that time of day actually looks (morning and daytime read bright,
-  // dusk and night read dark) plus a handful of hue "bands" (sunrise
-  // peach, midday sky-blue, sunset plum, midnight indigo, etc.) so a
-  // reload still lands on a genuinely different-but-appropriate look
-  // each time instead of one fixed palette per period.
+  // server's) and picks a mood matching that part of the day (morning
+  // and daytime read bright, dusk and night read dark).
   function getTimeOfDay(){
     var h = new Date().getHours();
     if (h >= 5 && h < 11) return "morning";
@@ -544,79 +538,150 @@
     return "night";
   }
 
-  var TIME_THEMES = {
-    morning: { // soft pastel sunrise — light, airy, gentle
-      dark:false,
-      bgHueBands:[[18,42],[344,368],[46,62]],
-      bgSat:[16,30], bgL:[91,97],
-      accentSat:[48,66], accentL:[56,68],
-      suitHueBands:[[3,22],[150,172]]
-    },
-    daytime: { // vivid clear daylight — bright, saturated, energetic
-      dark:false,
-      bgHueBands:[[196,214],[92,138],[14,34]],
-      bgSat:[28,46], bgL:[88,95],
-      accentSat:[60,80], accentL:[48,60],
-      suitHueBands:[[358,382],[128,152]]
-    },
-    dusk: { // warm golden-hour glow — dark but warm, not moody
-      dark:true,
-      bgHueBands:[[8,28],[282,318],[30,46]],
-      bgSat:[34,50], bgL:[15,25],
-      accentSat:[56,76], accentL:[52,64],
-      suitHueBands:[[350,374],[298,322]]
-    },
-    night: { // deep moody midnight — cool, jewel-toned, low-lit
-      dark:true,
-      bgHueBands:[[220,248],[258,284],[182,202]],
-      bgSat:[26,40], bgL:[7,15],
-      accentSat:[42,60], accentL:[46,58],
-      suitHueBands:[[340,364],[152,176]]
-    }
+  // Every entry below is a real, currently-trending palette copied
+  // by hand from coolors.co/palettes/trending (name + hex codes as
+  // published there) — not an invented/procedural color scheme. Each
+  // mood bucket holds several real palettes fitting that time of day's
+  // character; one is picked at random on every load, so the exact
+  // colors vary but always trace back to an actual coolors palette.
+  var MOOD_DARK = { morning:false, daytime:false, dusk:true, night:true };
+
+  var PALETTES = {
+    morning: [ // light, soft, pastel, airy
+      { name:"Pastel Dreamland Adventure", hex:["CDB4DB","FFC8DD","FFAFCC","BDE0FE","A2D2FF"] },
+      { name:"Soft Pink Delight", hex:["FFE5EC","FFC2D1","FFB3C6","FF8FAB","FB6F92"] },
+      { name:"Soft Pastel Shades", hex:["EDDCD2","FFF1E6","FDE2E4","FAD2E1","C5DEDD"] },
+      { name:"Golden Summer Fields", hex:["CCD5AE","E9EDC9","FEFAE0","FAEDCD","D4A373"] },
+      { name:"Silver Sage", hex:["E0E2DB","D2D4C8","B8BDB5","889696","5F7470"] },
+      { name:"Soft Lavender", hex:["22223B","4A4E69","9A8C98","C9ADA7","F2E9E4"] }
+    ],
+    daytime: [ // bright, vivid, saturated, energetic
+      { name:"Sunny Beach Day", hex:["264653","2A9D8F","E9C46A","F4A261","E76F51"] },
+      { name:"Refreshing Summer Fun", hex:["8ECAE6","219EBC","023047","FFB703","FB8500"] },
+      { name:"Vibrant Color Fiesta", hex:["FFBE0B","FB5607","FF006E","8338EC","3A86FF"] },
+      { name:"Tropical Bliss", hex:["227C9D","17C3B2","FFCB77","FEF9EF","FE6D73"] },
+      { name:"Watermelon Sorbet", hex:["EF476F","FFD166","06D6A0","118AB2","073B4C"] },
+      { name:"Fresh Greens", hex:["386641","6A994E","A7C957","F2E8CF","BC4749"] },
+      { name:"Summer Ocean Breeze", hex:["E63946","F1FAEE","A8DADC","457B9D","1D3557"] }
+    ],
+    dusk: [ // warm golden-hour glow — dark but warm, not moody
+      { name:"Dark Sunset", hex:["335C67","FFF3B0","E09F3E","9E2A2B","540B0E"] },
+      { name:"Warm Autumn Glow", hex:["003049","D62828","F77F00","FCBF49","EAE2B7"] },
+      { name:"Rustic Charm", hex:["FFFCF2","CCC5B9","403D39","252422","EB5E28"] },
+      { name:"Autumn Harvest", hex:["6F1D1B","BB9457","432818","99582A","FFE6A7"] },
+      { name:"Purple Sunset", hex:["390099","9E0059","FF0054","FF5400","FFBD00"] },
+      { name:"Fiery Red", hex:["220901","621708","941B0C","BC3908","F6AA1C"] },
+      { name:"Warm Earth Tones", hex:["562C2C","F2542D","F5DFBB","0E9594","127475"] }
+    ],
+    night: [ // deep, moody, cool, jewel-toned, low-lit
+      { name:"Black & Gold Elegance", hex:["000000","14213D","FCA311","E5E5E5","FFFFFF"] },
+      { name:"Golden Twilight", hex:["000814","001D3D","003566","FFC300","FFD60A"] },
+      { name:"Deep Sea", hex:["0D1B2A","1B263B","415A77","778DA9","E0E1DD"] },
+      { name:"Midnight Sky", hex:["00296B","003F88","00509D","FDC500","FFD500"] },
+      { name:"Monochrome Chic", hex:["474448","2D232E","E0DDCF","534B52","F1F0EA"] },
+      { name:"Purple Dream", hex:["231942","5E548E","9F86C0","BE95C4","E0B1CB"] },
+      { name:"Deep Blue Waters", hex:["2F6690","3A7CA5","D9DCD6","16425B","81C3D7"] },
+      { name:"Serene Blue", hex:["E7ECEF","274C77","6096BA","A3CEF1","8B8C89"] },
+      { name:"Ocean Breeze", hex:["03045E","0077B6","00B4D8","90E0EF","CAF0F8"] }
+    ]
   };
 
-  function pickBand(bands){
-    var b = bands[Math.floor(Math.random()*bands.length)];
-    return between(b[0], b[1]);
+  function hexToHsl(hex){
+    var r = parseInt(hex.substr(0,2),16)/255;
+    var g = parseInt(hex.substr(2,2),16)/255;
+    var b = parseInt(hex.substr(4,2),16)/255;
+    var max = Math.max(r,g,b), min = Math.min(r,g,b);
+    var h, s, l = (max+min)/2;
+    if (max === min){ h = s = 0; }
+    else {
+      var d = max-min;
+      s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+      if (max === r) h = (g-b)/d + (g<b ? 6 : 0);
+      else if (max === g) h = (b-r)/d + 2;
+      else h = (r-g)/d + 4;
+      h /= 6;
+    }
+    return {h:h*360, s:s*100, l:l*100};
+  }
+
+  // Distance-from-orange (hue 20) used to sort a real palette's two
+  // leftover colors into "warm suit" vs "cool suit" without inventing
+  // any new hue — both colors still come straight from the palette.
+  function warmScore(h){
+    var d = Math.min(Math.abs(h-20), 360-Math.abs(h-20));
+    return -d;
+  }
+  function hueDist(a,b){
+    var d = Math.abs(a-b) % 360;
+    return d > 180 ? 360-d : d;
   }
 
   function randomPalette(){
-    var theme = TIME_THEMES[getTimeOfDay()];
-    var darkMode = theme.dark;
-    var baseHue = pickBand(theme.bgHueBands);
-    var schemes = ["mono","analogous","complementary","triadic","splitComplementary"];
-    var scheme = schemes[Math.floor(Math.random()*schemes.length)];
-    var accentHue = baseHue;
-    if (scheme === "analogous") accentHue = baseHue + 30;
-    else if (scheme === "complementary") accentHue = baseHue + 180;
-    else if (scheme === "triadic") accentHue = baseHue + 120;
-    else if (scheme === "splitComplementary") accentHue = baseHue + 150;
-    var feltHue = baseHue + 15;
+    var mood = getTimeOfDay();
+    var group = PALETTES[mood];
+    var chosen = group[Math.floor(Math.random()*group.length)];
+    var darkMode = MOOD_DARK[mood];
     var dir = darkMode ? 1 : -1;
 
-    var ink900 = {h:baseHue, s:between(theme.bgSat[0],theme.bgSat[1]), l:between(theme.bgL[0],theme.bgL[1])};
+    var sorted = chosen.hex.map(hexToHsl).sort(function(a,b){ return a.l - b.l; });
+    // background takes whichever end of the real palette is
+    // appropriately dark/light for this time of day; the card face
+    // ("paper") always wants to read light regardless of mode, so it
+    // takes the palette's lightest color (or next-lightest if that
+    // one was already spent on the background)
+    var bgC = darkMode ? sorted[0] : sorted[4];
+    var paperC = darkMode ? sorted[4] : sorted[3];
+    var remaining = sorted.filter(function(c){ return c !== bgC && c !== paperC; });
+    // suit colors need to read as visibly different hues (red-ish vs
+    // black-ish suits) more than they need to be the most saturated
+    // leftovers, so pick whichever pair of the 3 remaining colors is
+    // furthest apart in hue for the suits, leaving the third for brass
+    var pairs = [[0,1],[0,2],[1,2]];
+    var bestPair = pairs[0], bestDist = -1;
+    pairs.forEach(function(p){
+      var d = hueDist(remaining[p[0]].h, remaining[p[1]].h);
+      if (d > bestDist){ bestDist = d; bestPair = p; }
+    });
+    var brassIdx = 3 - bestPair[0] - bestPair[1];
+    var brassC = remaining[brassIdx];
+    var rest = [remaining[bestPair[0]], remaining[bestPair[1]]];
+    var suitWarmC, suitCoolC;
+    if (warmScore(rest[0].h) >= warmScore(rest[1].h)){ suitWarmC = rest[0]; suitCoolC = rest[1]; }
+    else { suitWarmC = rest[1]; suitCoolC = rest[0]; }
+
+    var ink900 = {h:bgC.h, s:bgC.s, l:bgC.l};
+    var paper = {h:paperC.h, s:paperC.s, l:Math.max(paperC.l, 82)};
+    var brass = {h:brassC.h, s:Math.max(brassC.s,40), l:Math.min(Math.max(brassC.l,40),68)};
+    var brass400 = {h:brass.h, s:Math.max(0,brass.s-6), l:Math.min(96,brass.l+14)};
+    var feltHue = ink900.h + 15;
     var fillL = ink900.l + dir*between(12,20);
-    var felt700 = {h:feltHue, s:between(24,36), l:fillL};
-    var text = {h:baseHue, s:between(10,26), l: darkMode ? between(90,98) : between(8,20)};
+    var felt700 = {h:feltHue, s:Math.max(20,Math.min(40,ink900.s)), l:fillL};
+    var text = {h:ink900.h, s:Math.max(0,ink900.s-10), l: darkMode ? between(90,98) : between(8,20)};
     // heading-color is its own token (not reused for suit text) since
     // it only ever has to contrast against the page background, while
     // the suit colors below have the separate, sometimes-conflicting
     // job of contrasting against the always-light card paper
-    var heading = {h:accentHue, s:between(55,75), l: darkMode ? between(62,74) : between(28,40)};
-    var paper = {h:accentHue, s:between(24,42), l:between(90,94)};
-    var brass = {h:accentHue, s:between(theme.accentSat[0],theme.accentSat[1]), l:between(theme.accentL[0],theme.accentL[1])};
-    var brass400 = {h:accentHue, s:Math.max(0,brass.s-6), l:Math.min(96,brass.l+14)};
-    var onBrass = {h:baseHue, s:Math.min(100,ink900.s+10), l: brass.l >= 50 ? 12 : 92};
-
-    var suitWarm = {h:pickBand([theme.suitHueBands[0]]), s:between(55,75), l:between(40,52)};
-    var suitCool = {h:pickBand([theme.suitHueBands[1]]), s:between(45,65), l:between(20,32)};
+    var heading = {h:brass.h, s:Math.max(brass.s,50), l: darkMode ? between(62,74) : between(28,40)};
+    var onBrass = {h:ink900.h, s:Math.min(100,ink900.s+10), l: brass.l >= 50 ? 12 : 92};
+    var suitWarm = {h:suitWarmC.h, s:Math.max(suitWarmC.s,45), l:Math.min(Math.max(suitWarmC.l,38),55)};
+    var suitCool = {h:suitCoolC.h, s:Math.max(suitCoolC.s,35), l:Math.min(Math.max(suitCoolC.l,18),32)};
+    // some real palettes are near-monochrome (e.g. all blues), which
+    // would otherwise leave the red-suit and black-suit colors too
+    // close in hue to tell apart at a glance — push suitCool further
+    // around the wheel, away from suitWarm, until they clear a floor
+    var MIN_SUIT_HUE_SEP = 70;
+    var suitSep = ((suitCool.h - suitWarm.h + 540) % 360) - 180;
+    if (Math.abs(suitSep) < MIN_SUIT_HUE_SEP){
+      var suitSign = suitSep >= 0 ? 1 : -1;
+      suitCool.h = suitCool.h + suitSign*(MIN_SUIT_HUE_SEP - Math.abs(suitSep));
+    }
 
     // felt-border/paper-border are shades of felt-700/paper-100 (same
     // hue+sat, lightness pushed further along the same staircase
     // direction) so every dashed outline and card-back border reads
     // as "a shade of its own surface," never an unrelated accent color
     var feltBorder = {h:feltHue, s:felt700.s, l:felt700.l + dir*between(10,16)};
-    var paperBorder = {h:accentHue, s:paper.s, l:paper.l - between(8,12)};
+    var paperBorder = {h:paper.h, s:paper.s, l:paper.l - between(8,12)};
 
     // ---- accessibility repairs (WCAG 2.1 AA) ----
     ensureContrast(text, ink900, 4.5);     // page text/icons vs page bg
@@ -633,7 +698,7 @@
     return {
       "--ink-900": hsl(ink900.h, ink900.s, ink900.l),
       "--felt-700": hsl(felt700.h, felt700.s, felt700.l),
-      "--felt-600": hsl(feltHue, between(24,36), fillL + dir*between(4,8)),
+      "--felt-600": hsl(feltHue, felt700.s, fillL + dir*between(4,8)),
       "--felt-border": hsl(feltBorder.h, feltBorder.s, feltBorder.l),
       "--text-color": hsl(text.h, text.s, text.l),
       "--heading-color": hsl(heading.h, heading.s, heading.l),
