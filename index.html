@@ -495,38 +495,41 @@
     var hi=Math.max(L1,L2), lo=Math.min(L1,L2);
     return (hi+0.05)/(lo+0.05);
   }
-  // Nudges fg's lightness away from bg (toward whichever pole has
-  // more relative luminance headroom) until the WCAG contrast ratio
-  // target is met, plus a small safety margin — hsl() rounds lightness
-  // to a whole number when it's stringified for CSS, which can shave
-  // a few hundredths off a ratio that only just cleared the target.
-  // 4.5:1 = AA for normal text; 3:1 = AA for UI-component borders
-  // (WCAG 1.4.11) and large text. Direction is chosen from actual
-  // relative luminance, not raw HSL lightness — the two can disagree
-  // by hue (a "light" blue can be less luminant than a "darker"
-  // yellow), which was silently pushing some colors the wrong way.
+  // Nudges fg's lightness until the WCAG contrast ratio target is met
+  // (plus a small safety margin — hsl() rounds lightness to a whole
+  // number when stringified for CSS, which can shave a few hundredths
+  // off a ratio that only just cleared the target). 4.5:1 = AA for
+  // normal text; 3:1 = AA for UI-component borders (WCAG 1.4.11) and
+  // large text. Only fg ever moves — bg is always a shared, reused
+  // color here (ink900/paper/felt700/brass are each the bg argument
+  // in several of these checks AND get returned directly as their own
+  // CSS var), so nudging bg to rescue one check used to silently
+  // corrupt every other role built on that same color: a saturated
+  // real-palette bg could get dragged toward black chasing one
+  // stubborn suit color, taking the card face or page background
+  // down with it.
+  //
+  // Tries both directions independently rather than guessing one from
+  // relative luminance and committing to it — luminance and raw HSL
+  // lightness can disagree enough by hue (a fully-saturated yellow can
+  // out-luminate a "lighter" pale purple) that the guess used to push
+  // some colors toward the one extreme that could never reach target,
+  // when the other direction was reachable the whole time.
   function ensureContrast(fg, bg, target){
-    var bgLum = relLuminance(hslToRgb(bg.h, bg.s, bg.l));
-    var fgLum = relLuminance(hslToRgb(fg.h, fg.s, fg.l));
-    var dir = fgLum >= bgLum ? 1 : -1;
     var safeTarget = target + 0.15;
-    var iter = 0;
-    // Normally only fg moves (further toward whichever pole it's
-    // already leaning). But if fg starts on the wrong side entirely —
-    // e.g. a saturated yellow-green background reads far brighter
-    // than its HSL "lightness" suggests, so a foreground picked to be
-    // "the light one" can end up stuck near-white with no room left
-    // to out-brighten it — pin fg at its exhausted extreme and ease
-    // bg the opposite way instead of giving up.
-    while (contrastOf(fg,bg) < safeTarget && iter < 200){
-      var fgHasRoom = dir>0 ? fg.l<100 : fg.l>0;
-      if (fgHasRoom){
-        fg.l = Math.max(0, Math.min(100, fg.l + dir*0.6));
-      } else {
-        bg.l = Math.max(0, Math.min(100, bg.l - dir*0.6));
+    function pushed(dir){
+      var f = {h:fg.h, s:fg.s, l:fg.l};
+      var iter = 0;
+      while (contrastOf(f,bg) < safeTarget && iter < 200){
+        var hasRoom = dir>0 ? f.l<100 : f.l>0;
+        if (!hasRoom) break;
+        f.l = Math.max(0, Math.min(100, f.l + dir*0.6));
+        iter++;
       }
-      iter++;
+      return f;
     }
+    var lighter = pushed(1), darker = pushed(-1);
+    fg.l = contrastOf(lighter,bg) >= contrastOf(darker,bg) ? lighter.l : darker.l;
     return fg;
   }
 
