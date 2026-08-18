@@ -256,10 +256,34 @@
   .undo-row{
     flex:0 0 auto;
     display:flex;
+    gap:8px;
     margin-bottom:40px;
   }
-  #app.right .undo-row{justify-content:flex-end;}
-  #app.left .undo-row{justify-content:flex-start;}
+  /* row-reverse (not just justify-content) so the autocomplete button
+     — first in source order — stays the one closest to the thumb
+     edge in both hand modes, same trick the bottom bar uses to keep
+     New Game pinned to the edge */
+  #app.right .undo-row{justify-content:flex-end; flex-direction:row-reverse;}
+  #app.left .undo-row{justify-content:flex-start; flex-direction:row;}
+
+  .autocomplete-btn{
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-height:40px;
+    padding:0 14px;
+    border:1px solid var(--brass-400);
+    border-radius:10px;
+    background:var(--brass-500);
+    color:var(--on-brass);
+    font-family:inherit;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .autocomplete-btn .ui-icon{width:16px; height:16px;}
+  .autocomplete-btn:active{filter:brightness(1.1);}
 
   .undo-btn{
     flex:0 0 auto;
@@ -412,6 +436,7 @@
     <div class="table">
       <div class="play-group">
         <div class="undo-row">
+          <button class="autocomplete-btn" id="autocompleteBtn" title="Auto Complete"></button>
           <button class="undo-btn" id="undoBtn" title="Undo"></button>
         </div>
         <div class="controls-row">
@@ -454,6 +479,7 @@
   var handMode = "right";
   var drawCount = 1;
   var moveCount = 0;
+  var autocompleting = false;
 
   var app = document.getElementById("app");
   var foundationsEl = document.getElementById("foundations");
@@ -461,6 +487,7 @@
   var stockBtn = document.getElementById("stockBtn");
   var wasteSlot = document.getElementById("wasteSlot");
   var undoBtn = document.getElementById("undoBtn");
+  var autocompleteBtn = document.getElementById("autocompleteBtn");
   var newGameBtn = document.getElementById("newGameBtn");
   var handSwitch = document.getElementById("handSwitch");
   var drawSwitch = document.getElementById("drawSwitch");
@@ -479,6 +506,7 @@
     C: '<path d="M17.28 9.05a5.5 5.5 0 1 0-10.56 0A5.5 5.5 0 1 0 12 17.66a5.5 5.5 0 1 0 5.28-8.6Z"/>'
   };
   var ICON_UNDO = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>';
+  var ICON_AUTOCOMPLETE = '<svg class="ui-icon" viewBox="0 0 15.34 15.3337" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.53336 7.2003L1.00003 14.3336L8.13336 11.807M2.33336 1.66694H2.34003M14.3334 5.00027H14.34M9.66669 1.00027H9.67336M14.3334 13.0003H14.34M14.3334 1.00027L12.84 1.50027C12.415 1.64186 12.0522 1.9267 11.8139 2.30609C11.5756 2.68548 11.4764 3.13587 11.5334 3.58027C11.6 4.1536 11.1534 4.66694 10.5667 4.66694H10.3134C9.74003 4.66694 9.24669 5.06694 9.14003 5.62694L9.00003 6.3336M14.3334 8.33356L13.7867 8.11356C13.2134 7.88689 12.5734 8.24689 12.4667 8.85356C12.3934 9.32023 11.9867 9.66689 11.5134 9.66689H11M7.00003 1.00027L7.22003 1.54694C7.44669 2.12027 7.0867 2.76027 6.48003 2.86694C6.01336 2.9336 5.66669 3.34694 5.66669 3.82027V4.3336M7.00004 8.33362C8.28671 9.62028 8.88671 11.1136 8.33337 11.6669C7.78004 12.2203 6.28671 11.6203 5.00004 10.3336C3.71337 9.04695 3.11337 7.55362 3.66671 7.00028C4.22004 6.44695 5.71337 7.04695 7.00004 8.33362Z"/></svg>';
   var ICON_NEWGAME = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>';
   var ICON_HAND = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>';
 
@@ -834,6 +862,25 @@
     return card.rank === pile[pile.length-1].rank + 1;
   }
 
+  // True once there's nothing left to actually decide: every tableau
+  // card is face-up (draw-1), or face-up with the stock pile also
+  // spent (draw-3, where undrawn stock cards are still "hidden" in a
+  // real sense since the player never saw them come up 3 at a time).
+  // Whenever this holds, repeatedly sending any available top card to
+  // its foundation — drawing the rest of the stock along the way —
+  // is guaranteed to finish the game: a card can only ever be stuck
+  // waiting on a lower card of its own suit, and that lower card is
+  // always face-up somewhere too, so the wait always resolves.
+  function canAutocomplete(){
+    var total = 0;
+    SUITS.forEach(function(s){ total += state.foundations[s].length; });
+    if (total === 52) return false;
+    if (drawCount === 3 && state.stock.length > 0) return false;
+    return state.tableau.every(function(pile){
+      return pile.every(function(c){ return c.faceUp; });
+    });
+  }
+
   function flipExposed(col){
     var pile = state.tableau[col];
     if (pile.length){
@@ -888,6 +935,80 @@
     render();
     checkWin();
     return true;
+  }
+
+  // Finds one legal foundation move among the cards actually available
+  // right now (waste top, each tableau top) and performs it through
+  // the normal selection+move path, so it gets the same history entry,
+  // FLIP animation, and win check as a manual move would.
+  function tryAutoMove(){
+    if (state.waste.length){
+      var w = state.waste[state.waste.length-1];
+      if (canStackFoundation(w, w.suit)){
+        selection = {pile:"waste", col:-1, idx:state.waste.length-1};
+        return moveSelectionToFoundation(w.suit);
+      }
+    }
+    for (var c=0; c<7; c++){
+      var pile = state.tableau[c];
+      if (!pile.length) continue;
+      var top = pile[pile.length-1];
+      if (canStackFoundation(top, top.suit)){
+        selection = {pile:"tableau", col:c, idx:pile.length-1};
+        return moveSelectionToFoundation(top.suit);
+      }
+    }
+    return false;
+  }
+
+  function runAutocomplete(){
+    if (autocompleting) return;
+    autocompleting = true;
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var pace = reduceMotion ? 0 : 150;
+    // Recycling waste back into the stock redraws it in the exact same
+    // order every time (see drawCard), so a lap that sends nothing to
+    // a foundation proves another identical lap would too — the only
+    // thing that can make a previously-skipped waste card newly
+    // reachable is foundation progress made *somewhere* (waste or
+    // tableau) since the last time this exact card was up. Track the
+    // foundation count as of the last recycle; if a full lap changed
+    // nothing, further cycling is provably futile. -1 is a sentinel
+    // so the very first recycle always happens — those buried cards
+    // haven't been individually re-examined by this algorithm yet,
+    // only skipped over during the player's own earlier manual draws.
+    var lastFoundationTotal = -1;
+    function foundationTotal(){
+      var t = 0;
+      SUITS.forEach(function(s){ t += state.foundations[s].length; });
+      return t;
+    }
+    function step(){
+      if (tryAutoMove()){
+        setTimeout(step, pace);
+        return;
+      }
+      if (state.stock.length){
+        drawCard();
+        setTimeout(step, pace);
+        return;
+      }
+      if (state.waste.length){
+        var total = foundationTotal();
+        if (total === lastFoundationTotal){
+          autocompleting = false;
+          renderBoard();
+          return;
+        }
+        lastFoundationTotal = total;
+        drawCard(); // stock is empty, so this recycles waste -> stock
+        setTimeout(step, pace);
+        return;
+      }
+      autocompleting = false;
+      renderBoard();
+    }
+    step();
   }
 
   function bounceEl(el){
@@ -1249,6 +1370,9 @@
     var noHistory = history.length === 0;
     undoBtn.style.visibility = noHistory ? "hidden" : "";
     undoBtn.style.pointerEvents = noHistory ? "none" : "";
+    var showAutocomplete = canAutocomplete();
+    autocompleteBtn.style.visibility = showAutocomplete ? "" : "hidden";
+    autocompleteBtn.style.pointerEvents = showAutocomplete && !autocompleting ? "" : "none";
 
     // foundations
     foundationsEl.innerHTML = "";
@@ -1348,6 +1472,7 @@
 
   stockBtn.addEventListener("click", drawCard);
   undoBtn.addEventListener("click", undo);
+  autocompleteBtn.addEventListener("click", runAutocomplete);
   newGameBtn.addEventListener("click", newGame);
   handSwitch.addEventListener("click", function(){
     handMode = handMode === "right" ? "left" : "right";
@@ -1422,6 +1547,7 @@
 
   newGameBtn.innerHTML = ICON_NEWGAME+"<span>New Game</span>";
   undoBtn.innerHTML = ICON_UNDO+"<span>Undo</span>";
+  autocompleteBtn.innerHTML = ICON_AUTOCOMPLETE+"<span>Auto Complete</span>";
   handSwitch.innerHTML = ICON_HAND;
 
   // Some mobile browsers leave vh/dvh stuck at a stale value after a
