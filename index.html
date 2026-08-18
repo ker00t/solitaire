@@ -34,6 +34,7 @@
     --text-color:#f4ecd8;
     --heading-color:#c96a4a;
     --on-brass:#12211c;
+    --on-card-back:#ffffff;
     --gap: 6px;
     /* single source of truth for every card-sized element (tableau,
        foundations, waste, draw) so they all render at the same size —
@@ -89,12 +90,12 @@
      it to the right. ---------- */
   /* Centering the title purely within .topbar's own box would still
      look top-heavy: .play-group starts with an undo-row that reserves
-     ~86px (40px min-height + 40px margin-bottom) even while the undo
-     button itself is invisible (visibility:hidden, not display:none,
-     so the layout never jumps when it appears), plus .surface's own
-     6px top padding — 92px of real, structural gap that follows
-     immediately after .topbar but isn't part of it. Padding the top
-     by that same 92px (on top of the actual visual gap G) makes the
+     ~86px (24px margin-top + 40px min-height + 16px margin-bottom) even
+     while the undo button itself is invisible (visibility:hidden, not
+     display:none, so the layout never jumps when it appears), plus
+     .surface's own 6px top padding — 92px of real, structural gap that
+     follows immediately after .topbar but isn't part of it. Padding the
+     top by that same 92px (on top of the actual visual gap G) makes the
      title's midpoint land at the midpoint of the FULL empty span up
      to where the foundations actually appear, not just within
      .topbar's own shorter box — and it works out regardless of the
@@ -255,6 +256,7 @@
     .card{transition:none;}
     .card.bounce{animation:none;}
     .card.flip-reveal{animation:none;}
+    .draw-btn, .undo-btn, .autocomplete-btn{transition:none;}
   }
 
   .empty-drop{
@@ -275,7 +277,8 @@
     flex:0 0 auto;
     display:flex;
     gap:12px;
-    margin-bottom:40px;
+    margin-top:24px;
+    margin-bottom:16px;
   }
   /* row-reverse (not just justify-content) so the draw button — first
      in source order — stays the one closest to the thumb edge in both
@@ -286,7 +289,10 @@
 
   /* draw button sits directly above the stock/waste pile and shares
      its exact column width so the invisible .draw-bridge between them
-     reads as one continuous tap target */
+     reads as one continuous tap target. It's the filled/primary action
+     until Auto Complete becomes available, at which point Auto
+     Complete takes over as the filled one and Draw steps back to an
+     outline — only one accent-filled button on screen at a time. */
   .draw-btn{
     flex:0 0 auto;
     display:flex;
@@ -296,22 +302,29 @@
     min-height:40px;
     border:1px solid var(--felt-border);
     border-radius:8px;
-    background:transparent;
-    color:var(--text-color);
+    background:var(--felt-700);
+    color:var(--on-card-back);
     font-family:inherit;
     font-weight:600;
     font-size:13px;
     cursor:pointer;
+    transition:background-color .18s ease, border-color .18s ease, color .18s ease;
   }
-  .draw-btn:active{background:var(--felt-700);}
+  .draw-btn:active{filter:brightness(1.12);}
+  .draw-btn.outline{
+    border-color:var(--felt-border);
+    background:transparent;
+    color:var(--text-color);
+  }
+  .draw-btn.outline:active{filter:none; background:var(--felt-700);}
 
   /* invisible bridge filling the gap between the draw button and the
      stock/waste pile below it, so the whole column between them is
      tappable instead of just the two card-sized targets */
   .draw-bridge{
     position:absolute;
-    top:40px;
-    height:40px;
+    top:64px;
+    height:16px;
     width:calc(var(--card-w) * 2 + 6px);
     cursor:pointer;
   }
@@ -323,16 +336,29 @@
     display:flex;
     align-items:center;
     justify-content:center;
+    overflow:hidden;
     width:40px;
     min-height:40px;
-    border:1px solid var(--brass-400);
+    border:1px solid var(--felt-border);
     border-radius:8px;
-    background:var(--brass-500);
-    color:var(--on-brass);
+    background:var(--felt-700);
+    color:var(--on-card-back);
     cursor:pointer;
+    opacity:1;
+    transform:scale(1);
+    transition:width .22s ease, border-width .22s ease, opacity .18s ease, transform .18s ease;
   }
   .autocomplete-btn .ui-icon{width:16px; height:16px;}
-  .autocomplete-btn:active{filter:brightness(1.1);}
+  .autocomplete-btn:active{filter:brightness(1.12);}
+  /* collapses to zero width (rather than display:none) so the row
+     smoothly slides Draw/Undo over instead of popping them into place */
+  .autocomplete-btn.is-hidden{
+    width:0;
+    min-width:0;
+    border-width:0;
+    opacity:0;
+    transform:scale(0.85);
+  }
 
   .undo-btn{
     flex:0 0 auto;
@@ -346,9 +372,22 @@
     background:transparent;
     color:var(--text-color);
     cursor:pointer;
+    opacity:1;
+    transform:scale(1);
+    transition:opacity .18s ease, transform .18s ease, visibility 0s linear 0s;
   }
   .undo-btn .ui-icon{width:16px; height:16px;}
   .undo-btn:active{background:var(--felt-700);}
+  /* stays visibility:hidden (not display:none) so the row's height
+     never jumps — only fades/shrinks in place. The visibility flip is
+     delayed on the way out so it stays hit-testable through the fade,
+     but takes effect immediately on the way back in. */
+  .undo-btn.is-hidden{
+    opacity:0;
+    transform:scale(0.85);
+    visibility:hidden;
+    transition:opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
+  }
 
   .controls-row{
     flex:0 0 auto;
@@ -801,6 +840,14 @@
     // as "a shade of its own surface," never an unrelated accent color
     var feltBorder = {h:feltHue, s:felt700.s, l:felt700.l + dir*between(10,16)};
 
+    // buttons filled with the card-back color (felt700) need real
+    // black-or-white text rather than a hue-tinted one — felt700 can
+    // land anywhere from near-black to mid-tone depending on the
+    // palette roll, and only a flat white/black choice, picked by
+    // whichever actually contrasts better, holds up across all of them
+    var onCardBack = contrastOf({h:0,s:0,l:100}, felt700) >= contrastOf({h:0,s:0,l:0}, felt700)
+      ? "#ffffff" : "#000000";
+
     // ---- accessibility repairs (WCAG 2.1 AA) ----
     ensureContrast(text, ink900, 4.5);     // page text/icons vs page bg
     ensureContrast(text, felt700, 4.5);    // button text/icons vs their fill
@@ -828,7 +875,8 @@
       "--brass-400": hsl(brass400.h, brass400.s, brass400.l),
       "--on-brass": hsl(onBrass.h, onBrass.s, onBrass.l),
       "--brick-600": hsl(suitWarm.h, suitWarm.s, suitWarm.l),
-      "--charcoal-900": hsl(suitCool.h, suitCool.s, suitCool.l)
+      "--charcoal-900": hsl(suitCool.h, suitCool.s, suitCool.l),
+      "--on-card-back": onCardBack
     };
   }
 
@@ -1416,11 +1464,15 @@
     // visibility (not display) keeps the row's height reserved so the
     // controls/tableau below it never shift when undo appears/disappears
     var noHistory = history.length === 0;
-    undoBtn.style.visibility = noHistory ? "hidden" : "";
+    undoBtn.classList.toggle("is-hidden", noHistory);
     undoBtn.style.pointerEvents = noHistory ? "none" : "";
     var showAutocomplete = canAutocomplete();
-    autocompleteBtn.style.display = showAutocomplete ? "" : "none";
+    autocompleteBtn.classList.toggle("is-hidden", !showAutocomplete);
     autocompleteBtn.style.pointerEvents = showAutocomplete && !autocompleting ? "" : "none";
+    // Draw is the filled/primary button until Auto Complete becomes
+    // available, at which point it steps back to an outline so only
+    // one accent-filled button shows at a time.
+    drawBtn.classList.toggle("outline", showAutocomplete);
 
     // foundations
     foundationsEl.innerHTML = "";
