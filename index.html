@@ -21,12 +21,21 @@
     --heading-color:#c96a4a;
     --on-brass:#12211c;
     --gap: 6px;
-    --topbar-h: 52px;
     /* single source of truth for every card-sized element (tableau,
        foundations, waste, draw) so they all render at the same size —
        mirrors the tableau's own 7-column-minus-gaps math */
     --card-w: calc((min(520px, 100vw - 20px) - 6 * var(--gap)) / 7);
     font-variant-numeric: tabular-nums;
+  }
+  /* "Jersey 10" (Google Fonts, latin subset only — this app's text is
+     English-only) inlined as base64 so the wordmark keeps the project's
+     zero-external-dependency, single-file architecture. */
+  @font-face{
+    font-family:'Jersey 10';
+    font-style:normal;
+    font-weight:400;
+    font-display:swap;
+    src:url(data:font/woff2;base64,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) format('woff2');
   }
   /* touch-action:manipulation disables the double-tap-to-zoom gesture
      (which otherwise fires on rapid repeated taps of a button, e.g.
@@ -60,25 +69,30 @@
     min-height:calc(var(--app-height, 100dvh));
   }
 
-  /* ---------- top bar: title only ---------- */
+  /* ---------- top bar: title only. Mirrors to whichever side the
+     player's thumb favors, same as the rest of the controls — left-
+     handed keeps it flush against the left edge, right-handed flips
+     it to the right. ---------- */
   .topbar{
-    min-height:var(--topbar-h);
     flex:0 0 auto;
     display:flex;
-    align-items:center;
-    justify-content:center;
     padding:calc(18px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 6px max(16px, env(safe-area-inset-left));
   }
+  #app.left .topbar{justify-content:flex-start;}
+  #app.right .topbar{justify-content:flex-end;}
   .wordmark{
     margin:0;
-    font-size:26px;
-    font-weight:700;
-    letter-spacing:-0.02em;
-    color:var(--heading-color);
-    text-align:center;
+    font-family:'Jersey 10', 'Iowan Old Style', Georgia, serif;
+    font-weight:400;
+    font-size:clamp(52px, 20vw, 80px);
+    line-height:0.83;
+    letter-spacing:-0.03em;
+    color:#e119d6;
+    text-align:left;
     cursor:pointer;
     transition:transform .12s ease;
   }
+  #app.right .wordmark{text-align:right;}
   .wordmark:active{transform:scale(0.96);}
 
   /* ---------- main play surface: spread across the viewport so the
@@ -324,14 +338,14 @@
     padding:0 16px;
     border:1px solid var(--felt-border);
     border-radius:10px;
-    background:var(--felt-700);
+    background:transparent;
     color:var(--text-color);
     font-family:inherit;
     font-weight:600;
     font-size:13px;
     cursor:pointer;
   }
-  .newgame-btn:active, .draw-toggle:active, .hand-toggle:active{filter:brightness(1.15);}
+  .newgame-btn:active, .draw-toggle:active, .hand-toggle:active{background:var(--felt-700);}
   .newgame-btn .ui-icon{width:16px; height:16px;}
   .draw-toggle{min-width:44px; padding:0 12px;}
   .hand-toggle{min-width:44px; padding:0;}
@@ -381,7 +395,7 @@
 
 <div id="app" class="right">
   <div class="topbar">
-    <h1 class="wordmark" id="wordmark" role="button" tabindex="0" aria-label="Shuffle color palette">Lazy Solitaire</h1>
+    <h1 class="wordmark" id="wordmark" role="button" tabindex="0" aria-label="Shuffle color palette">Lazy<br>Solitaire</h1>
   </div>
 
   <div class="surface">
