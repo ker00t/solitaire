@@ -153,6 +153,7 @@
     flex:0 0 auto;
     display:flex;
     flex-direction:column;
+    position:relative;
   }
 
   .foundations{
@@ -273,30 +274,61 @@
   .undo-row{
     flex:0 0 auto;
     display:flex;
-    gap:8px;
+    gap:12px;
     margin-bottom:40px;
   }
-  /* row-reverse (not just justify-content) so the autocomplete button
-     — first in source order — stays the one closest to the thumb
-     edge in both hand modes, same trick the bottom bar uses to keep
-     New Game pinned to the edge */
-  #app.right .undo-row{justify-content:flex-end; flex-direction:row-reverse;}
+  /* row-reverse (not just justify-content) so the draw button — first
+     in source order — stays the one closest to the thumb edge in both
+     hand modes, same trick the bottom bar uses to keep New Game
+     pinned to the edge */
+  #app.right .undo-row{justify-content:flex-start; flex-direction:row-reverse;}
   #app.left .undo-row{justify-content:flex-start; flex-direction:row;}
+
+  /* draw button sits directly above the stock/waste pile and shares
+     its exact column width so the invisible .draw-bridge between them
+     reads as one continuous tap target */
+  .draw-btn{
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:calc(var(--card-w) * 2 + 6px);
+    min-height:40px;
+    border:1px solid var(--felt-border);
+    border-radius:8px;
+    background:transparent;
+    color:var(--text-color);
+    font-family:inherit;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .draw-btn:active{background:var(--felt-700);}
+
+  /* invisible bridge filling the gap between the draw button and the
+     stock/waste pile below it, so the whole column between them is
+     tappable instead of just the two card-sized targets */
+  .draw-bridge{
+    position:absolute;
+    top:40px;
+    height:40px;
+    width:calc(var(--card-w) * 2 + 6px);
+    cursor:pointer;
+  }
+  #app.left .draw-bridge{left:0;}
+  #app.right .draw-bridge{right:0;}
 
   .autocomplete-btn{
     flex:0 0 auto;
     display:flex;
     align-items:center;
-    gap:8px;
+    justify-content:center;
+    width:40px;
     min-height:40px;
-    padding:0 14px;
     border:1px solid var(--brass-400);
-    border-radius:10px;
+    border-radius:8px;
     background:var(--brass-500);
     color:var(--on-brass);
-    font-family:inherit;
-    font-weight:600;
-    font-size:13px;
     cursor:pointer;
   }
   .autocomplete-btn .ui-icon{width:16px; height:16px;}
@@ -306,16 +338,13 @@
     flex:0 0 auto;
     display:flex;
     align-items:center;
-    gap:8px;
+    justify-content:center;
+    width:40px;
     min-height:40px;
-    padding:0 14px;
     border:1px solid var(--felt-border);
-    border-radius:10px;
+    border-radius:8px;
     background:transparent;
     color:var(--text-color);
-    font-family:inherit;
-    font-weight:600;
-    font-size:13px;
     cursor:pointer;
   }
   .undo-btn .ui-icon{width:16px; height:16px;}
@@ -331,9 +360,7 @@
   }
   #app.left .controls-row{flex-direction:row;}
   #app.right .controls-row{flex-direction:row-reverse;}
-  .stock-waste{flex:0 0 auto; display:flex; gap:10px;}
-  #app.right .stock-waste{margin-right:24px;}
-  #app.left .stock-waste{margin-left:24px;}
+  .stock-waste{flex:0 0 auto; display:flex; gap:6px;}
   #app.left .stock-waste{flex-direction:row;}
   #app.right .stock-waste{flex-direction:row-reverse;}
 
@@ -385,10 +412,10 @@
     align-items:center;
     justify-content:center;
     gap:6px;
-    min-height:44px;
+    min-height:40px;
     padding:0 16px;
     border:1px solid var(--felt-border);
-    border-radius:10px;
+    border-radius:8px;
     background:transparent;
     color:var(--text-color);
     font-family:inherit;
@@ -398,8 +425,8 @@
   }
   .newgame-btn:active, .draw-toggle:active, .hand-toggle:active{background:var(--felt-700);}
   .newgame-btn .ui-icon{width:16px; height:16px;}
-  .draw-toggle{min-width:44px; padding:0 12px;}
-  .hand-toggle{min-width:44px; padding:0;}
+  .draw-toggle{width:40px; padding:0;}
+  .hand-toggle{width:40px; padding:0;}
   .hand-toggle .ui-icon{width:18px; height:18px; transition:transform .18s ease;}
   #app.left .hand-toggle .ui-icon{transform:scaleX(-1);}
 
@@ -453,9 +480,11 @@
     <div class="table">
       <div class="play-group">
         <div class="undo-row">
-          <button class="autocomplete-btn" id="autocompleteBtn" title="Auto Complete"></button>
+          <button class="draw-btn" id="drawBtn" title="Draw"></button>
           <button class="undo-btn" id="undoBtn" title="Undo"></button>
+          <button class="autocomplete-btn" id="autocompleteBtn" title="Auto Complete"></button>
         </div>
+        <div class="draw-bridge" id="drawBridge" aria-hidden="true"></div>
         <div class="controls-row">
           <div class="stock-waste">
             <button class="stock-btn" id="stockBtn"></button>
@@ -503,6 +532,8 @@
   var tableauEl = document.getElementById("tableau");
   var stockBtn = document.getElementById("stockBtn");
   var wasteSlot = document.getElementById("wasteSlot");
+  var drawBtn = document.getElementById("drawBtn");
+  var drawBridge = document.getElementById("drawBridge");
   var undoBtn = document.getElementById("undoBtn");
   var autocompleteBtn = document.getElementById("autocompleteBtn");
   var newGameBtn = document.getElementById("newGameBtn");
@@ -1388,7 +1419,7 @@
     undoBtn.style.visibility = noHistory ? "hidden" : "";
     undoBtn.style.pointerEvents = noHistory ? "none" : "";
     var showAutocomplete = canAutocomplete();
-    autocompleteBtn.style.visibility = showAutocomplete ? "" : "hidden";
+    autocompleteBtn.style.display = showAutocomplete ? "" : "none";
     autocompleteBtn.style.pointerEvents = showAutocomplete && !autocompleting ? "" : "none";
 
     // foundations
@@ -1450,20 +1481,28 @@
 
     // waste — in 1-draw mode only the single playable card ever exists,
     // so there's nothing to fan. In 3-draw mode, fan up to 3 cards with
-    // enough offset to read each one's full rank+suit corner (not just
-    // a sliver), extending away from the stock pile so it never covers it.
+    // enough offset to read each one's rank+suit corner (not just a
+    // sliver), extending away from the stock pile so it never covers it.
+    // The fan must also keep older cards to the LEFT of newer ones (a
+    // card's rank/suit lives in its top-left corner, so a newer card on
+    // top only ever hides an older card's right side) — since the stock
+    // sits on opposite sides in the two hand modes, which physical card
+    // is the unmoved anchor (0 offset) has to flip too, not just the
+    // direction cards fan out in.
     wasteSlot.innerHTML = "";
     if (state.waste.length){
       var peekCount = drawCount === 3 ? Math.min(3, state.waste.length) : 1;
       var peekStart = state.waste.length - peekCount;
       var fanDir = handMode === "right" ? -1 : 1;
+      var anchorNewest = handMode === "right";
       for (var wi=peekStart; wi<state.waste.length; wi++){
-        var depth = state.waste.length - 1 - wi;
-        var isTop = depth === 0;
+        var recency = state.waste.length - 1 - wi; // 0 = top/newest card
+        var isTop = recency === 0;
         var wEl = cardEl(state.waste[wi], "");
-        var fanFraction = (fanDir * depth * 0.56).toFixed(2);
+        var shiftSteps = anchorNewest ? recency : (peekCount - 1 - recency);
+        var fanFraction = (fanDir * shiftSteps * 0.3).toFixed(2);
         wEl.style.transform = "translate(calc(var(--card-w) * " + fanFraction + "), 0)";
-        wEl.style.zIndex = String(10 - depth);
+        wEl.style.zIndex = String(10 - recency);
         if (isTop){
           wEl.addEventListener("pointerdown", onCardPointerDown("waste", -1, state.waste.length-1));
         } else {
@@ -1488,6 +1527,8 @@
   }
 
   stockBtn.addEventListener("click", drawCard);
+  drawBtn.addEventListener("click", drawCard);
+  drawBridge.addEventListener("click", drawCard);
   undoBtn.addEventListener("click", undo);
   autocompleteBtn.addEventListener("click", runAutocomplete);
   newGameBtn.addEventListener("click", newGame);
@@ -1562,9 +1603,10 @@
     requestAnimationFrame(frame);
   }
 
-  newGameBtn.innerHTML = ICON_NEWGAME+"<span>New Game</span>";
-  undoBtn.innerHTML = ICON_UNDO+"<span>Undo</span>";
-  autocompleteBtn.innerHTML = ICON_AUTOCOMPLETE+"<span>Auto Complete</span>";
+  newGameBtn.innerHTML = "<span>New Game</span>";
+  drawBtn.innerHTML = "<span>Draw</span>";
+  undoBtn.innerHTML = ICON_UNDO;
+  autocompleteBtn.innerHTML = ICON_AUTOCOMPLETE;
   handSwitch.innerHTML = ICON_HAND;
 
   // Some mobile browsers leave vh/dvh stuck at a stale value after a
