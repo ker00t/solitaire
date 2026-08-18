@@ -949,6 +949,13 @@
       var isNowUp = el.classList.contains("up");
       if (moved){
         var baseTransform = el.style.transform || "";
+        // elevate above every other card while animating across the
+        // board, so it doesn't visually pass behind later-painted
+        // columns/piles — then restore whatever z-index it had before
+        // (the waste fan sets its own per-card z-index, which a blind
+        // reset would otherwise clobber)
+        var baseZIndex = el.style.zIndex || "";
+        el.style.zIndex = "50";
         el.style.transition = "none";
         el.style.transform = "translate("+dx+"px,"+dy+"px) " + baseTransform;
         requestAnimationFrame(function(){
@@ -957,6 +964,7 @@
             el.style.transform = baseTransform;
             el.addEventListener("transitionend", function handler(){
               el.style.transition = "";
+              el.style.zIndex = baseZIndex;
               el.removeEventListener("transitionend", handler);
             });
           });
