@@ -680,7 +680,12 @@
     else { suitWarmC = rest[1]; suitCoolC = rest[0]; }
 
     var ink900 = {h:bgC.h, s:bgC.s, l:bgC.l};
-    var paper = {h:paperC.h, s:paperC.s, l:Math.max(paperC.l, 82)};
+    // paper (the face-up card itself) is a fixed white/light-gray pair
+    // rather than palette-derived — playing-card faces read as a
+    // physical, neutral surface regardless of the felt around them,
+    // not another themed color. paperC is still carved out of the
+    // palette above so brass/suit color selection is unaffected.
+    var paper = {h:0, s:0, l:100};
     var brass = {h:brassC.h, s:Math.max(brassC.s,40), l:Math.min(Math.max(brassC.l,40),68)};
     var brass400 = {h:brass.h, s:Math.max(0,brass.s-6), l:Math.min(96,brass.l+14)};
     var feltHue = ink900.h + 15;
@@ -711,7 +716,6 @@
     // direction) so every dashed outline and card-back border reads
     // as "a shade of its own surface," never an unrelated accent color
     var feltBorder = {h:feltHue, s:felt700.s, l:felt700.l + dir*between(10,16)};
-    var paperBorder = {h:paper.h, s:paper.s, l:paper.l - between(8,12)};
 
     // ---- accessibility repairs (WCAG 2.1 AA) ----
     ensureContrast(text, ink900, 4.5);     // page text/icons vs page bg
@@ -725,7 +729,6 @@
     // soft, low-contrast line rather than the 3:1 UI-boundary minimum
     ensureContrast(feltBorder, felt700, 1.35); // card-back/button border vs its fill
     ensureContrast(feltBorder, ink900, 1.35);  // same border where it shows on bare page bg
-    ensureContrast(paperBorder, paper, 1.35);  // card-face border vs its fill
     ensureContrast(brass400, ink900, 3.0);     // drag drop-target outline vs page bg — stays bold, it's a functional affordance
 
     return {
@@ -735,8 +738,8 @@
       "--felt-border": hsl(feltBorder.h, feltBorder.s, feltBorder.l),
       "--text-color": hsl(text.h, text.s, text.l),
       "--heading-color": hsl(heading.h, heading.s, heading.l),
-      "--paper-100": hsl(paper.h, paper.s, paper.l),
-      "--paper-border": hsl(paperBorder.h, paperBorder.s, paperBorder.l),
+      "--paper-100": "#ffffff",
+      "--paper-border": "#e0e0e0",
       "--brass-500": hsl(brass.h, brass.s, brass.l),
       "--brass-400": hsl(brass400.h, brass400.s, brass400.l),
       "--on-brass": hsl(onBrass.h, onBrass.s, onBrass.l),
