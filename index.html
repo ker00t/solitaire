@@ -894,9 +894,24 @@
       el.style.top = r.top+"px";
       el.style.width = r.width+"px";
       el.style.height = r.height+"px";
+      // .card's padding/gap are percentages, which CSS always resolves
+      // against the containing block's WIDTH — fine while the card is
+      // a normal in-flow tableau/waste/foundation child, but position:
+      // fixed changes its containing block to the viewport, so those
+      // percentages would suddenly resolve against a width many times
+      // larger and balloon the card's visible padding/spacing. Pin them
+      // to fixed pixel values computed from the card's real (pre-drag)
+      // width so they stay put.
+      el.style.padding = (r.width*0.04).toFixed(2)+"px "+(r.width*0.08).toFixed(2)+"px";
+      el.style.gap = (r.width*0.14).toFixed(2)+"px";
       el.style.zIndex = 500+i;
       el.style.pointerEvents = "none";
       el.classList.add("dragging");
+      // same containing-block issue for .rank's percentage min-height
+      // (height percentages resolve against the containing block's
+      // height, i.e. the viewport once fixed) — pin it in pixels too
+      var rankEl = el.querySelector(".rank");
+      if (rankEl) rankEl.style.minHeight = (r.height*0.26).toFixed(2)+"px";
     });
   }
 
