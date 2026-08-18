@@ -690,10 +690,13 @@
     ensureContrast(onBrass, brass, 4.5);   // win-dialog button text vs its fill
     ensureContrast(suitWarm, paper, 4.5);  // red-suit rank/icon vs card face
     ensureContrast(suitCool, paper, 4.5);  // black-suit rank/icon vs card face
-    ensureContrast(feltBorder, felt700, 3.0); // card-back/button border vs its fill
-    ensureContrast(feltBorder, ink900, 3.0);  // same border where it shows on bare page bg
-    ensureContrast(paperBorder, paper, 3.0);  // card-face border vs its fill
-    ensureContrast(brass400, ink900, 3.0);    // drag drop-target outline vs page bg
+    // card/button outlines are decorative — the shapes they trace are
+    // already distinguishable by their fill color, so these target a
+    // soft, low-contrast line rather than the 3:1 UI-boundary minimum
+    ensureContrast(feltBorder, felt700, 1.35); // card-back/button border vs its fill
+    ensureContrast(feltBorder, ink900, 1.35);  // same border where it shows on bare page bg
+    ensureContrast(paperBorder, paper, 1.35);  // card-face border vs its fill
+    ensureContrast(brass400, ink900, 3.0);     // drag drop-target outline vs page bg — stays bold, it's a functional affordance
 
     return {
       "--ink-900": hsl(ink900.h, ink900.s, ink900.l),
