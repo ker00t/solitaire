@@ -875,6 +875,18 @@
     }
     drag.dragEls = els;
     els.forEach(function(el, i){
+      // A card grabbed moments after it moved or got revealed can
+      // still be mid-animation (a CSS transition easing its FLIP
+      // transform back to rest, or the flip-reveal keyframe rotating
+      // it through rotateY(90deg)) — measuring its rect in that state
+      // gives a squashed or zero-width box. Snap it to its true
+      // resting layout first. The only card this ever runs on that
+      // has a real non-empty resting transform is the top waste card,
+      // whose fan offset at depth 0 is a translate(0,0) no-op, so
+      // clearing it is always safe.
+      el.style.transition = "none";
+      el.style.transform = "";
+      el.classList.remove("flip-reveal", "bounce");
       var r = el.getBoundingClientRect();
       el.style.position = "fixed";
       el.style.margin = "0";
