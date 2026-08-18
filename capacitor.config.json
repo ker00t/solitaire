@@ -9,7 +9,8 @@
   },
   "plugins": {
     "CapacitorUpdater": {
-      "autoUpdate": false
+      "autoUpdate": false,
+      "statsUrl": ""
     }
   }
 }
