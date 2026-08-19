@@ -34,7 +34,7 @@
     --text-color:#f4ecd8;
     --heading-color:#c96a4a;
     --on-brass:#12211c;
-    --on-card-back:#ffffff;
+    --on-heading:#000000;
     --gap: 6px;
     /* single source of truth for every card-sized element (tableau,
        foundations, waste, draw) so they all render at the same size —
@@ -248,9 +248,13 @@
     100%{transform:translateY(0);}
   }
   .card.flip-reveal{animation:flip-reveal .28s ease;}
+  /* --fan-x carries the waste fan's translateX offset (0 for any card
+     that isn't part of the fan) through the keyframes, so revealing a
+     fanned card spins it in place instead of the rotation briefly
+     clobbering its fan position and snapping over once it ends */
   @keyframes flip-reveal{
-    0%{transform:rotateY(90deg); filter:brightness(0.7);}
-    100%{transform:rotateY(0deg); filter:brightness(1);}
+    0%{transform:translate(var(--fan-x, 0), 0) rotateY(90deg); filter:brightness(0.7);}
+    100%{transform:translate(var(--fan-x, 0), 0) rotateY(0deg); filter:brightness(1);}
   }
   @media (prefers-reduced-motion: reduce){
     .card{transition:none;}
@@ -300,10 +304,10 @@
     justify-content:center;
     width:calc(var(--card-w) * 2 + 6px);
     min-height:40px;
-    border:1px solid var(--felt-border);
+    border:1px solid var(--heading-color);
     border-radius:8px;
-    background:var(--felt-700);
-    color:var(--on-card-back);
+    background:var(--heading-color);
+    color:var(--on-heading);
     font-family:inherit;
     font-weight:600;
     font-size:13px;
@@ -339,10 +343,10 @@
     overflow:hidden;
     width:40px;
     min-height:40px;
-    border:1px solid var(--felt-border);
+    border:1px solid var(--heading-color);
     border-radius:8px;
-    background:var(--felt-700);
-    color:var(--on-card-back);
+    background:var(--heading-color);
+    color:var(--on-heading);
     cursor:pointer;
     opacity:1;
     transform:scale(1);
@@ -565,6 +569,10 @@
   var drawCount = 1;
   var moveCount = 0;
   var autocompleting = false;
+  // Normal FLIP move duration; runAutocomplete temporarily shortens
+  // this so its cascading moves settle well within its own step pace
+  // instead of getting cut off mid-slide by the next step's re-render.
+  var cardMoveMs = 220;
 
   var app = document.getElementById("app");
   var foundationsEl = document.getElementById("foundations");
@@ -840,14 +848,6 @@
     // as "a shade of its own surface," never an unrelated accent color
     var feltBorder = {h:feltHue, s:felt700.s, l:felt700.l + dir*between(10,16)};
 
-    // buttons filled with the card-back color (felt700) need real
-    // black-or-white text rather than a hue-tinted one — felt700 can
-    // land anywhere from near-black to mid-tone depending on the
-    // palette roll, and only a flat white/black choice, picked by
-    // whichever actually contrasts better, holds up across all of them
-    var onCardBack = contrastOf({h:0,s:0,l:100}, felt700) >= contrastOf({h:0,s:0,l:0}, felt700)
-      ? "#ffffff" : "#000000";
-
     // ---- accessibility repairs (WCAG 2.1 AA) ----
     ensureContrast(text, ink900, 4.5);     // page text/icons vs page bg
     ensureContrast(text, felt700, 4.5);    // button text/icons vs their fill
@@ -855,6 +855,15 @@
     ensureContrast(onBrass, brass, 4.5);   // win-dialog button text vs its fill
     ensureContrast(suitWarm, paper, 4.5);  // red-suit rank/icon vs card face
     ensureContrast(suitCool, paper, 4.5);  // black-suit rank/icon vs card face
+
+    // buttons filled with the heading color need real black-or-white
+    // text rather than a hue-tinted one — heading can land anywhere
+    // from dark to light depending on the palette roll, and only a
+    // flat white/black choice, picked by whichever actually contrasts
+    // better, holds up across all of them. Computed after heading's
+    // own contrast repair above so it's judged on the final color.
+    var onHeading = contrastOf({h:0,s:0,l:100}, heading) >= contrastOf({h:0,s:0,l:0}, heading)
+      ? "#ffffff" : "#000000";
     // card/button outlines are decorative — the shapes they trace are
     // already distinguishable by their fill color, so these target a
     // soft, low-contrast line rather than the 3:1 UI-boundary minimum
@@ -876,7 +885,7 @@
       "--on-brass": hsl(onBrass.h, onBrass.s, onBrass.l),
       "--brick-600": hsl(suitWarm.h, suitWarm.s, suitWarm.l),
       "--charcoal-900": hsl(suitCool.h, suitCool.s, suitCool.l),
-      "--on-card-back": onCardBack
+      "--on-heading": onHeading
     };
   }
 
@@ -1061,7 +1070,14 @@
     if (autocompleting) return;
     autocompleting = true;
     var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    var pace = reduceMotion ? 0 : 150;
+    // Shorten the FLIP move duration for the run and pace steps just
+    // past it, so each card fully settles into the foundation before
+    // the next step's re-render captures its position — otherwise the
+    // still-sliding card gets a fresh partial transform mid-flight
+    // every step, which reads as jitter rather than a clean slide.
+    var pace = reduceMotion ? 0 : 130;
+    if (!reduceMotion) cardMoveMs = 100;
+    function finishPace(){ cardMoveMs = 220; }
     // Recycling waste back into the stock redraws it in the exact same
     // order every time (see drawCard), so a lap that sends nothing to
     // a foundation proves another identical lap would too — the only
@@ -1093,6 +1109,7 @@
         var total = foundationTotal();
         if (total === lastFoundationTotal){
           autocompleting = false;
+          finishPace();
           renderBoard();
           return;
         }
@@ -1102,6 +1119,7 @@
         return;
       }
       autocompleting = false;
+      finishPace();
       renderBoard();
     }
     step();
@@ -1274,11 +1292,17 @@
     if (legal) target.el.classList.add("drop-target");
   }
 
+  // A deliberately generous slop radius — tapping should be the easy,
+  // default action and dragging a more deliberate one, so a card isn't
+  // accidentally yanked into drag mode by the small amount of finger
+  // wobble a normal tap has on a touchscreen.
+  var DRAG_THRESHOLD = 18;
+
   function onDragMove(ev){
     if (!drag) return;
     var dx = ev.clientX-drag.startX, dy = ev.clientY-drag.startY;
     if (!drag.active){
-      if (drag.cards && Math.hypot(dx,dy) > 8) activateDrag();
+      if (drag.cards && Math.hypot(dx,dy) > DRAG_THRESHOLD) activateDrag();
       else return;
     }
     positionDragEls(ev.clientX, ev.clientY);
@@ -1331,12 +1355,12 @@
     pushHistory();
     // a card moving stock->waste has no on-screen "before" element (the
     // stock pile doesn't render individual cards), so the generic FLIP
-    // system in render() can't detect it and animate it — give the new
-    // top waste card its own flip-reveal explicitly. Scoped to 1-draw,
-    // where there's always exactly one unambiguous card to animate.
-    var willRevealSingle = drawCount === 1 && state.stock.length > 0;
+    // system in render() can't detect it and animate it — give every
+    // newly-revealed card its own flip-reveal explicitly instead.
+    var revealCount = 0;
     if (state.stock.length){
       var n = Math.min(drawCount, state.stock.length);
+      revealCount = n;
       for (var i=0; i<n; i++){
         var card = state.stock.pop();
         card.faceUp = true;
@@ -1354,8 +1378,18 @@
     }
     selection = null;
     render();
-    if (willRevealSingle && !window.matchMedia("(prefers-reduced-motion: reduce)").matches){
-      flipRevealEl(wasteSlot.querySelector(".card:last-child"));
+    if (revealCount > 0 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+      // Reveal each newly-drawn card in the fan (oldest of the batch
+      // first, newest last, matching how they'd actually be dealt),
+      // staggered slightly so a 3-card draw reads as a small cascade
+      // instead of all three snapping into place at once.
+      var wasteCards = wasteSlot.querySelectorAll(".card");
+      var start = Math.max(0, wasteCards.length - revealCount);
+      for (var wi = start; wi < wasteCards.length; wi++){
+        (function(el, delay){
+          setTimeout(function(){ flipRevealEl(el); }, delay);
+        })(wasteCards[wi], (wi - start) * 60);
+      }
     }
   }
 
@@ -1437,7 +1471,7 @@
         el.style.transform = "translate("+dx+"px,"+dy+"px) " + baseTransform;
         requestAnimationFrame(function(){
           requestAnimationFrame(function(){
-            el.style.transition = "transform .22s ease";
+            el.style.transition = "transform " + (cardMoveMs/1000) + "s ease";
             el.style.transform = baseTransform;
             el.addEventListener("transitionend", function handler(){
               el.style.transition = "";
@@ -1552,8 +1586,10 @@
         var isTop = recency === 0;
         var wEl = cardEl(state.waste[wi], "");
         var shiftSteps = anchorNewest ? recency : (peekCount - 1 - recency);
-        var fanFraction = (fanDir * shiftSteps * 0.3).toFixed(2);
-        wEl.style.transform = "translate(calc(var(--card-w) * " + fanFraction + "), 0)";
+        var fanFraction = (fanDir * shiftSteps * 0.5).toFixed(2);
+        var fanX = "calc(var(--card-w) * " + fanFraction + ")";
+        wEl.style.setProperty("--fan-x", fanX);
+        wEl.style.transform = "translate(" + fanX + ", 0)";
         wEl.style.zIndex = String(10 - recency);
         if (isTop){
           wEl.addEventListener("pointerdown", onCardPointerDown("waste", -1, state.waste.length-1));
