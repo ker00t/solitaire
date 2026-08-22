@@ -76,12 +76,18 @@
     letter-spacing:0.01em;
   }
 
+  /* horizontal inset lives here (not on .topbar/.surface individually)
+     so the title and the play area — two separate max-width:520,
+     margin:auto-centered boxes — size against the exact same padded
+     width and land on the exact same edges at every viewport size */
   #app{
     display:flex;
     flex-direction:column;
     min-height:100vh;
     min-height:100dvh;
     min-height:calc(var(--app-height, 100dvh));
+    padding-left:max(10px, env(safe-area-inset-left));
+    padding-right:max(10px, env(safe-area-inset-right));
   }
 
   /* ---------- top bar: title only. Mirrors to whichever side the
@@ -106,7 +112,10 @@
     max-width:520px;
     width:100%;
     margin:0 auto;
-    padding:calc(env(safe-area-inset-top) + 92px + 28px) max(16px, env(safe-area-inset-right)) 28px max(16px, env(safe-area-inset-left));
+    /* no left/right padding here — the horizontal inset is #app's job
+       now (see its rule above), shared with .surface, so this and the
+       play area size against the exact same padded width */
+    padding:calc(env(safe-area-inset-top) + 92px + 28px) 0 28px 0;
   }
   #app.left .topbar{justify-content:flex-start;}
   #app.right .topbar{justify-content:flex-end;}
@@ -132,7 +141,8 @@
     flex:1 1 auto;
     overflow-y:auto;
     overflow-x:hidden;
-    padding:6px max(10px, env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    /* left/right come from #app now, not here — see its rule */
+    padding:6px 0 calc(18px + env(safe-area-inset-bottom)) 0;
     display:flex;
   }
   .table{
@@ -439,19 +449,30 @@
   }
   .stock-btn.empty{background:transparent; border-style:dashed;}
 
-  /* ---------- bottom bar: New Game, draw-count, hand-mode. Mirrors to
-     the thumb's side like the other controls; reversing the row order
-     when flipped keeps New Game closest to the screen edge either way ---------- */
+  /* ---------- bottom bar: New Game, draw-count, hand-mode, and (web
+     only) the App Store badge. The badge lives in this same row —
+     space-between — rather than being fixed to the viewport, so its
+     edge tracks the play area's own edge (which is centered/padded
+     independently of the raw screen) instead of the screen's edge. ---------- */
   .bottom-bar{
     flex:0 0 auto;
     display:flex;
     align-items:center;
-    gap:8px;
-    flex-wrap:wrap;
+    justify-content:space-between;
     padding-top:4px;
   }
   #app.left .bottom-bar{flex-direction:row;}
   #app.right .bottom-bar{flex-direction:row-reverse;}
+  /* the 3 buttons stay grouped as their own unit; reversing their
+     order too when flipped keeps New Game closest to the thumb edge */
+  .bottom-buttons{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  #app.left .bottom-buttons{flex-direction:row;}
+  #app.right .bottom-buttons{flex-direction:row-reverse;}
   .newgame-btn, .draw-toggle, .hand-toggle{
     display:flex;
     align-items:center;
@@ -477,13 +498,11 @@
 
   canvas#confetti{position:fixed; inset:0; z-index:19; pointer-events:none;}
 
-  /* ---------- App Store badge: web only, pinned to whichever bottom
-     corner the hand-mode controls AREN'T using, so it never competes
-     with the thumb-side buttons for space or attention ---------- */
+  /* ---------- App Store badge: web only, sits in the bottom bar's
+     own row (opposite the hand-mode buttons via justify-content:
+     space-between above) so it aligns with the play area's edge,
+     not the raw screen edge ---------- */
   .app-store-badge{
-    position:fixed;
-    bottom:max(16px, env(safe-area-inset-bottom));
-    z-index:5;
     line-height:0;
   }
   /* the [hidden] attribute is how JS keeps this out of the native app;
@@ -492,8 +511,6 @@
      value always beats the browser's built-in [hidden]{display:none} */
   .app-store-badge:not([hidden]){display:block;}
   .app-store-badge svg{display:block; width:135px; height:40px;}
-  #app.left .app-store-badge{right:max(16px, env(safe-area-inset-right));}
-  #app.right .app-store-badge{left:max(16px, env(safe-area-inset-left));}
 </style>
 </head>
 <body>
@@ -523,18 +540,17 @@
       </div>
       <div class="spacer spacer-trail"></div>
       <div class="bottom-bar">
-        <button class="newgame-btn" id="newGameBtn"></button>
-        <button class="draw-toggle" id="drawSwitch" aria-label="Toggle 1-card or 3-card draw"></button>
-        <button class="hand-toggle" id="handSwitch" aria-label="Toggle left/right-handed mode"></button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Web only (hidden here, unhidden by JS when not running inside the
-       native app) — official Apple "Download on the App Store" artwork,
-       used unmodified per Apple's marketing guidelines. -->
-  <a class="app-store-badge" id="appStoreBadge" target="_blank" rel="noopener" aria-label="Download on the App Store" hidden>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135 40" width="135" height="40" role="img" aria-hidden="true">
+        <div class="bottom-buttons">
+          <button class="newgame-btn" id="newGameBtn"></button>
+          <button class="draw-toggle" id="drawSwitch" aria-label="Toggle 1-card or 3-card draw"></button>
+          <button class="hand-toggle" id="handSwitch" aria-label="Toggle left/right-handed mode"></button>
+        </div>
+        <!-- Web only (hidden here, unhidden by JS when not running
+             inside the native app) — official Apple "Download on the
+             App Store" artwork, used unmodified per Apple's marketing
+             guidelines. -->
+        <a class="app-store-badge" id="appStoreBadge" target="_blank" rel="noopener" aria-label="Download on the App Store" hidden>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135 40" width="135" height="40" role="img" aria-hidden="true">
       <path fill="#A6A6A6" d="M130.197,40H4.729C2.122,40,0,37.872,0,35.267V4.726C0,2.12,2.122,0,4.729,0h125.468C132.803,0,135,2.12,135,4.726v30.541C135,37.872,132.803,40,130.197,40L130.197,40z"/>
       <path d="M134.032,35.268c0,2.116-1.714,3.83-3.834,3.83H4.729c-2.119,0-3.839-1.714-3.839-3.83V4.725c0-2.115,1.72-3.835,3.839-3.835h125.468c2.121,0,3.834,1.72,3.834,3.835L134.032,35.268L134.032,35.268z"/>
       <path fill="#FFFFFF" d="M30.128,19.784c-0.029-3.223,2.639-4.791,2.761-4.864c-1.511-2.203-3.853-2.504-4.676-2.528c-1.967-0.207-3.875,1.177-4.877,1.177c-1.022,0-2.565-1.157-4.228-1.123c-2.14,0.033-4.142,1.272-5.24,3.196c-2.266,3.923-0.576,9.688,1.595,12.859c1.086,1.553,2.355,3.287,4.016,3.226c1.625-0.067,2.232-1.036,4.193-1.036c1.943,0,2.513,1.036,4.207,0.997c1.744-0.028,2.842-1.56,3.89-3.127c1.255-1.78,1.759-3.533,1.779-3.623C33.507,24.924,30.161,23.647,30.128,19.784z"/>
@@ -560,8 +576,11 @@
       <path fill="#FFFFFF" d="M109.936,9.504h-1.154v2.29c0,0.582,0.205,0.873,0.611,0.873c0.188,0,0.344-0.016,0.467-0.049l0.027,0.795c-0.207,0.078-0.479,0.117-0.814,0.117c-0.414,0-0.736-0.126-0.969-0.378c-0.234-0.252-0.35-0.676-0.35-1.271V9.504h-0.689V8.719h0.689V7.855l1.027-0.31v1.173h1.154V9.504z"/>
       <path fill="#FFFFFF" d="M115.484,13.433h-1.049v-2.68c0-0.845-0.316-1.268-0.949-1.268c-0.486,0-0.818,0.245-1,0.735c-0.031,0.103-0.049,0.229-0.049,0.377v2.835h-1.047V6.556h1.047v2.841h0.02c0.33-0.517,0.803-0.775,1.416-0.775c0.434,0,0.793,0.142,1.078,0.427c0.355,0.355,0.533,0.883,0.533,1.581V13.433z"/>
       <path fill="#FFFFFF" d="M121.207,10.853c0,0.188-0.014,0.346-0.039,0.475h-3.143c0.014,0.466,0.164,0.821,0.455,1.067c0.266,0.22,0.609,0.33,1.029,0.33c0.465,0,0.889-0.074,1.271-0.223l0.164,0.728c-0.447,0.194-0.973,0.291-1.582,0.291c-0.73,0-1.305-0.215-1.721-0.645c-0.418-0.43-0.625-1.007-0.625-1.731c0-0.711,0.193-1.303,0.582-1.775c0.406-0.504,0.955-0.756,1.648-0.756c0.678,0,1.193,0.252,1.541,0.756C121.068,9.77,121.207,10.265,121.207,10.853z M120.207,10.582c0.008-0.311-0.061-0.579-0.203-0.805c-0.182-0.291-0.459-0.437-0.834-0.437c-0.342,0-0.621,0.142-0.834,0.427c-0.174,0.227-0.277,0.498-0.311,0.815H120.207z"/>
-    </svg>
-  </a>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <canvas id="confetti"></canvas>
