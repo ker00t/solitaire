@@ -484,9 +484,13 @@
     position:fixed;
     bottom:max(16px, env(safe-area-inset-bottom));
     z-index:5;
-    display:block;
     line-height:0;
   }
+  /* the [hidden] attribute is how JS keeps this out of the native app;
+     display:block has to be scoped to :not([hidden]) rather than set
+     unconditionally, since an unconditional author-stylesheet display
+     value always beats the browser's built-in [hidden]{display:none} */
+  .app-store-badge:not([hidden]){display:block;}
   .app-store-badge svg{display:block; width:135px; height:40px;}
   #app.left .app-store-badge{right:max(16px, env(safe-area-inset-right));}
   #app.right .app-store-badge{left:max(16px, env(safe-area-inset-left));}
@@ -1413,7 +1417,7 @@
         won = true;
         renderBoard();
         launchConfetti();
-        hapticNotification("SUCCESS");
+        hapticFireworks();
       }, 250);
     }
   }
@@ -1784,12 +1788,25 @@
     if (!Haptics) return;
     Haptics.impact({style: style}).catch(function(){});
   }
-  function hapticNotification(type){
-    var cap = window.Capacitor;
-    if (!cap || !cap.isNativePlatform || !cap.isNativePlatform()) return;
-    var Haptics = cap.Plugins && cap.Plugins.Haptics;
-    if (!Haptics) return;
-    Haptics.notification({type: type}).catch(function(){});
+  // A single notification pulse reads as a polite ding, not a
+  // celebration — this staggers several impacts of varying strength
+  // and irregular timing instead, each one landing like its own
+  // firework burst-and-crackle rather than one flat buzz.
+  function hapticFireworks(){
+    [
+      [0,     "HEAVY"],
+      [90,    "LIGHT"],
+      [170,   "LIGHT"],
+      [330,   "MEDIUM"],
+      [460,   "HEAVY"],
+      [500,   "LIGHT"],
+      [620,   "MEDIUM"],
+      [780,   "HEAVY"],
+      [830,   "LIGHT"],
+      [900,   "LIGHT"]
+    ].forEach(function(burst){
+      setTimeout(function(){ hapticImpact(burst[1]); }, burst[0]);
+    });
   }
 
   // Self-hosted OTA updates (no cloud service): checks a small JSON
