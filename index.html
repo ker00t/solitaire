@@ -1749,12 +1749,16 @@
         vr: -0.15+Math.random()*0.3
       });
     }
-    var start = Date.now();
     function frame(){
-      var elapsed = Date.now()-start;
       ctx.clearRect(0,0,W,H);
+      // no new pieces ever spawn after the initial burst — just keep
+      // stepping every piece's own fall until the last one has
+      // actually dropped off the bottom edge, rather than cutting
+      // everyone off at a fixed duration while some are still on screen
+      var anyOnScreen = false;
       pieces.forEach(function(p){
         p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        if (p.y < H + p.h) anyOnScreen = true;
         ctx.save();
         ctx.translate(p.x,p.y);
         ctx.rotate(p.rot);
@@ -1762,7 +1766,7 @@
         ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
         ctx.restore();
       });
-      if (elapsed < 3200){
+      if (anyOnScreen){
         requestAnimationFrame(frame);
       } else {
         ctx.clearRect(0,0,W,H);
