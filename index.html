@@ -740,10 +740,10 @@
       { name:"Sunny Beach Day", hex:["264653","2A9D8F","E9C46A","F4A261","E76F51"] },
       { name:"Refreshing Summer Fun", hex:["8ECAE6","219EBC","023047","FFB703","FB8500"] },
       { name:"Vibrant Color Fiesta", hex:["FFBE0B","FB5607","FF006E","8338EC","3A86FF"] },
-      { name:"Tropical Bliss", hex:["227C9D","17C3B2","FFCB77","FEF9EF","FE6D73"] },
-      { name:"Watermelon Sorbet", hex:["EF476F","FFD166","06D6A0","118AB2","073B4C"] },
       { name:"Fresh Greens", hex:["386641","6A994E","A7C957","F2E8CF","BC4749"] },
-      { name:"Summer Ocean Breeze", hex:["E63946","F1FAEE","A8DADC","457B9D","1D3557"] }
+      { name:"Summer Ocean Breeze", hex:["E63946","F1FAEE","A8DADC","457B9D","1D3557"] },
+      { name:"Pastel Serenity", hex:["E27396","EA9AB2","EFCFE3","EAF2D7","B3DEE2"] },
+      { name:"Crimson Hues", hex:["250902","38040E","640D14","800E13","AD2831"] }
     ],
     dusk: [ // warm golden-hour glow — dark but warm, not moody
       { name:"Dark Sunset", hex:["335C67","FFF3B0","E09F3E","9E2A2B","540B0E"] },
@@ -756,14 +756,14 @@
     ],
     night: [ // deep, moody, cool, jewel-toned, low-lit
       { name:"Black & Gold Elegance", hex:["000000","14213D","FCA311","E5E5E5","FFFFFF"] },
-      { name:"Golden Twilight", hex:["000814","001D3D","003566","FFC300","FFD60A"] },
-      { name:"Deep Sea", hex:["0D1B2A","1B263B","415A77","778DA9","E0E1DD"] },
       { name:"Midnight Sky", hex:["00296B","003F88","00509D","FDC500","FFD500"] },
       { name:"Monochrome Chic", hex:["474448","2D232E","E0DDCF","534B52","F1F0EA"] },
       { name:"Purple Dream", hex:["231942","5E548E","9F86C0","BE95C4","E0B1CB"] },
-      { name:"Deep Blue Waters", hex:["2F6690","3A7CA5","D9DCD6","16425B","81C3D7"] },
-      { name:"Serene Blue", hex:["E7ECEF","274C77","6096BA","A3CEF1","8B8C89"] },
-      { name:"Ocean Breeze", hex:["03045E","0077B6","00B4D8","90E0EF","CAF0F8"] }
+      { name:"Ocean Breeze", hex:["03045E","0077B6","00B4D8","90E0EF","CAF0F8"] },
+      { name:"Crimson Hues", hex:["250902","38040E","640D14","800E13","AD2831"] },
+      { name:"Leafy Green Garden", hex:["132A13","31572C","4F772D","90A955","ECF39E"] },
+      { name:"Antique Chic", hex:["DBB3B1","C89FA3","A67F8E","6C534E","2C1A1D"] },
+      { name:"Rustic Earthy Tones", hex:["7F5539","A68A64","EDE0D4","656D4A","414833"] }
     ]
   };
 
@@ -797,14 +797,36 @@
     return d > 180 ? 360-d : d;
   }
 
+  // Two different real palettes can still "feel" like the same theme
+  // if their backgrounds land in the same hue family (e.g. two blues)
+  // — the actual reported symptom here. Track the previous pick's
+  // background hue and, given a choice, avoid landing near it again;
+  // also never repeat the exact same palette back-to-back.
+  var lastPaletteName = null;
+  var lastBgHue = null;
+  function paletteBgHue(pal, darkMode){
+    var sorted = pal.hex.map(hexToHsl).sort(function(a,b){ return a.l - b.l; });
+    return (darkMode ? sorted[0] : sorted[4]).h;
+  }
+
   function randomPalette(){
     var mood = getTimeOfDay();
     var group = PALETTES[mood];
-    var chosen = group[Math.floor(Math.random()*group.length)];
     var darkMode = MOOD_DARK[mood];
     var dir = darkMode ? 1 : -1;
 
+    var candidates = group.filter(function(p){ return p.name !== lastPaletteName; });
+    if (lastBgHue !== null){
+      var distinct = candidates.filter(function(p){
+        return hueDist(paletteBgHue(p, darkMode), lastBgHue) > 40;
+      });
+      if (distinct.length) candidates = distinct;
+    }
+    var chosen = candidates[Math.floor(Math.random()*candidates.length)];
+    lastPaletteName = chosen.name;
+
     var sorted = chosen.hex.map(hexToHsl).sort(function(a,b){ return a.l - b.l; });
+    lastBgHue = (darkMode ? sorted[0] : sorted[4]).h;
     // background takes whichever end of the real palette is
     // appropriately dark/light for this time of day; the card face
     // ("paper") always wants to read light regardless of mode, so it
