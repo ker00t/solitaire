@@ -28,7 +28,6 @@
     --paper-100:#f4ecd8;
     --paper-border:#ddceac;
     --brass-500:#c9a24b;
-    --brass-400:#ddb968;
     --brick-600:#a6432f;
     --charcoal-900:#26221d;
     --text-color:#f4ecd8;
@@ -215,7 +214,15 @@
     display:flex;
     flex-direction:column;
     gap:14%;
-    padding:4% 8%;
+    /* percentage padding resolves against the CONTAINING BLOCK's width,
+       not this element's own width — fine for a card sitting in a
+       card-sized slot, but a ghost/backdrop clone appended straight to
+       body has the whole viewport as its containing block, so 8% padding
+       would balloon far past the card's actual size (and, with
+       box-sizing:border-box, force the box itself to grow to fit that
+       oversized padding). Anchor to --card-w directly so padding stays
+       correct no matter what the element's containing block is. */
+    padding:calc(var(--card-w, 0px) * 0.04) calc(var(--card-w, 0px) * 0.08);
     position:relative;
     cursor:pointer;
     touch-action:none;
@@ -258,18 +265,42 @@
     100%{transform:translateY(0);}
   }
   .card.flip-reveal{animation:flip-reveal .28s ease;}
-  /* --fan-x carries the waste fan's translateX offset (0 for any card
-     that isn't part of the fan) through the keyframes, so revealing a
-     fanned card spins it in place instead of the rotation briefly
-     clobbering its fan position and snapping over once it ends */
+  /* --fan-x carries the waste fan's translateX offset (0px for any
+     card that isn't part of the fan — the fallback MUST carry a unit;
+     ghost/backdrop elements below never set --fan-x at all, and a
+     bare unitless 0 fallback silently breaks the whole transform's
+     interpolation wherever it's added to a px length inside calc(),
+     freezing the card at its resting transform for the entire
+     animation — only the filter still animated. Cost real time to
+     track down) through the keyframes, so revealing a fanned card
+     spins it in place instead of the rotation briefly clobbering its
+     fan position and snapping over once it ends. --draw-dx/--draw-dy
+     do the same for a card drawn from the stock: they hold the offset
+     back to the stock pile's position (0 for any reveal that has
+     nothing to do with the stock, e.g. a tableau card exposed by
+     removing the one on top of it), so the card visibly travels off
+     the face-down pile onto the waste as it flips face up. */
   @keyframes flip-reveal{
-    0%{transform:translate(var(--fan-x, 0), 0) rotateY(90deg); filter:brightness(0.7);}
-    100%{transform:translate(var(--fan-x, 0), 0) rotateY(0deg); filter:brightness(1);}
+    0%{transform:translate(calc(var(--fan-x, 0px) + var(--draw-dx, 0px)), var(--draw-dy, 0px)) rotateY(90deg); filter:brightness(0.7);}
+    100%{transform:translate(var(--fan-x, 0px), 0) rotateY(0deg); filter:brightness(1);}
+  }
+  /* Undoing a draw plays the exact same journey as flip-reveal above,
+     just with the two endpoints swapped: starts resting at the waste
+     (flat, bright) and ends edge-on and dimmed back at the stock —
+     the same shape as the draw animation, in reverse. Its own keyframe
+     (states swapped, still played forward) rather than flip-reveal
+     with animation-direction:reverse, since reverse playback of a
+     custom-property-driven transform is an under-tested corner of the
+     spec across browsers. */
+  .card.flip-reveal-back{animation:flip-reveal-back .28s ease;}
+  @keyframes flip-reveal-back{
+    0%{transform:translate(var(--fan-x, 0px), 0) rotateY(0deg); filter:brightness(1);}
+    100%{transform:translate(calc(var(--fan-x, 0px) + var(--draw-dx, 0px)), var(--draw-dy, 0px)) rotateY(90deg); filter:brightness(0.7);}
   }
   @media (prefers-reduced-motion: reduce){
     .card{transition:none;}
     .card.bounce{animation:none;}
-    .card.flip-reveal{animation:none;}
+    .card.flip-reveal, .card.flip-reveal-back{animation:none;}
     .draw-btn, .undo-btn, .autocomplete-btn{transition:none;}
   }
 
@@ -278,12 +309,6 @@
     border-radius:7px;
     aspect-ratio:5/7;
   }
-  .col.drop-target, .foundation.drop-target{
-    outline:3px solid var(--brass-400);
-    outline-offset:-3px;
-    border-radius:7px;
-  }
-
   /* ---------- undo row + controls row: sit just above the tableau,
      mirrored by hand mode so the frequently-tapped stock/waste side
      lands in the thumb's natural resting arc ---------- */
@@ -322,16 +347,17 @@
     font-weight:600;
     font-size:13px;
     cursor:pointer;
-    transition:background-color .18s ease, border-color .18s ease, color .18s ease;
+    transform:scale(1);
+    transition:background-color .18s ease, border-color .18s ease, color .18s ease, transform .1s ease;
   }
-  .draw-btn:active{filter:brightness(1.12);}
+  .draw-btn:active{filter:brightness(1.12); transform:scale(0.96);}
   .draw-btn.outline{
     border-color:var(--felt-border);
     background:transparent;
     color:var(--text-color);
   }
   .draw-btn.outline:active{filter:none; background:var(--felt-700);}
-  .draw-btn:disabled{opacity:0.4; cursor:default; filter:none;}
+  .draw-btn:disabled{opacity:0.4; cursor:default; filter:none; transform:scale(1);}
 
   /* invisible bridge filling the gap between the draw button and the
      stock/waste pile below it, so the whole column between them is
@@ -587,6 +613,13 @@
 
 <script>
 (function(){
+  // iOS Safari/WKWebView won't apply :active styles on a plain tap
+  // unless something on the page is listening for touch events — any
+  // listener anywhere unlocks it for every element site-wide, so one
+  // empty one here is enough to make every button's pressed state
+  // (Draw included) actually show up on a real device.
+  document.addEventListener("touchstart", function(){}, {passive:true});
+
   var SUITS = ["S","H","D","C"];
   var SUIT_COLOR = {S:"black",H:"red",D:"red",C:"black"};
   var RANK_LABEL = {1:"A",11:"J",12:"Q",13:"K"};
@@ -860,7 +893,6 @@
     // palette above so brass/suit color selection is unaffected.
     var paper = {h:0, s:0, l:100};
     var brass = {h:brassC.h, s:Math.max(brassC.s,40), l:Math.min(Math.max(brassC.l,40),68)};
-    var brass400 = {h:brass.h, s:Math.max(0,brass.s-6), l:Math.min(96,brass.l+14)};
     var feltHue = ink900.h + 15;
     var fillL = ink900.l + dir*between(12,20);
     var felt700 = {h:feltHue, s:Math.max(20,Math.min(40,ink900.s)), l:fillL};
@@ -905,6 +937,24 @@
     ensureContrast(onBrass, brass, 4.5);   // win-dialog button text vs its fill
     ensureContrast(suitWarm, paper, 4.5);  // red-suit rank/icon vs card face
     ensureContrast(suitCool, paper, 4.5);  // black-suit rank/icon vs card face
+    // Individually reading fine against the white card face doesn't
+    // mean the two suit colors read as different from EACH OTHER —
+    // "4.5:1 vs white" only pins down a minimum, not a specific
+    // lightness, so both routinely converged to nearly the same
+    // luminance (measured well under half the pairs actually clearing
+    // even a 1.5:1 gap from each other across many palette rolls,
+    // regardless of how far apart their hues were). Push them apart
+    // directly — darken suitCool and/or lighten suitWarm, each only
+    // as far as its own contrast against paper still comfortably
+    // holds — until the pair itself clears a real, guaranteed gap.
+    var suitPairTries = 0;
+    while (contrastOf(suitWarm, suitCool) < 3.0 && suitPairTries < 300){
+      var movedSuit = false;
+      if (suitCool.l > 0.3){ suitCool.l = Math.max(0, suitCool.l - 0.5); movedSuit = true; }
+      if (suitWarm.l < 65 && contrastOf(suitWarm, paper) > 4.8){ suitWarm.l = Math.min(65, suitWarm.l + 0.5); movedSuit = true; }
+      if (!movedSuit) break;
+      suitPairTries++;
+    }
 
     // buttons filled with the heading color need real black-or-white
     // text rather than a hue-tinted one — heading can land anywhere
@@ -919,7 +969,6 @@
     // soft, low-contrast line rather than the 3:1 UI-boundary minimum
     ensureContrast(feltBorder, felt700, 1.35); // card-back/button border vs its fill
     ensureContrast(feltBorder, ink900, 1.35);  // same border where it shows on bare page bg
-    ensureContrast(brass400, ink900, 3.0);     // drag drop-target outline vs page bg — stays bold, it's a functional affordance
 
     return {
       "--ink-900": hsl(ink900.h, ink900.s, ink900.l),
@@ -931,7 +980,6 @@
       "--paper-100": "#ffffff",
       "--paper-border": "#e0e0e0",
       "--brass-500": hsl(brass.h, brass.s, brass.l),
-      "--brass-400": hsl(brass400.h, brass400.s, brass400.l),
       "--on-brass": hsl(onBrass.h, onBrass.s, onBrass.l),
       "--brick-600": hsl(suitWarm.h, suitWarm.s, suitWarm.l),
       "--charcoal-900": hsl(suitCool.h, suitCool.s, suitCool.l),
@@ -990,10 +1038,61 @@
   }
   function undo(){
     if (!history.length) return;
-    state = history.pop();
+    var prevState = state;
+    var restored = history.pop();
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Detect that this undo is specifically reversing a draw: cards
+    // leaving the waste back into the (invisible) stock. pushHistory()
+    // brackets exactly one atomic action per entry, so this can only
+    // be true for an undone draw — never mixed with some other move.
+    var reversingCards = [];
+    if (!reduceMotion && restored.waste.length < prevState.waste.length && restored.stock.length > prevState.stock.length){
+      var restoredIds = {};
+      restored.waste.forEach(function(c){ restoredIds[c.suit+c.rank] = true; });
+      reversingCards = prevState.waste.filter(function(c){ return !restoredIds[c.suit+c.rank]; });
+    }
+    // Those cards' elements vanish once state flips to "in the stock"
+    // (which doesn't render individual cards), so the generic FLIP
+    // diff in render() has nothing left to animate them toward —
+    // capture their current on-screen position now, before that happens.
+    var ghosts = reversingCards.map(function(c){
+      var el = document.querySelector('[data-card-id="'+c.suit+c.rank+'"]');
+      return el ? {card:c, rect:el.getBoundingClientRect()} : null;
+    }).filter(Boolean);
+
+    state = restored;
     selection = null;
     if (moveCount>0) moveCount--;
-    render();
+
+    if (ghosts.length){
+      renderBoard();
+      var stockRect = stockBtn.getBoundingClientRect();
+      // reverse of the deal order — the most-recently-drawn (top) card
+      // un-deals first, working backward, same stagger pace as a draw
+      var order = ghosts.slice().reverse();
+      order.forEach(function(g, idx){
+        var el = cardEl(g.card, "card-ghost");
+        el.style.position = "fixed";
+        el.style.left = g.rect.left+"px";
+        el.style.top = g.rect.top+"px";
+        el.style.width = g.rect.width+"px";
+        el.style.height = g.rect.height+"px";
+        el.style.margin = "0";
+        el.style.zIndex = String(50 - idx);
+        el.style.setProperty("--draw-dx", (stockRect.left - g.rect.left)+"px");
+        el.style.setProperty("--draw-dy", (stockRect.top - g.rect.top)+"px");
+        document.body.appendChild(el);
+        setTimeout(function(){
+          flipRevealEl(el, true);
+          el.addEventListener("animationend", function handler(){
+            el.remove();
+            el.removeEventListener("animationend", handler);
+          }, {once:true});
+        }, idx*60);
+      });
+    } else {
+      render();
+    }
   }
 
   function topCard(col){
@@ -1075,7 +1174,6 @@
     moveCount++;
     selection = null;
     render();
-    hapticImpact("LIGHT");
     return true;
   }
 
@@ -1089,9 +1187,6 @@
     moveCount++;
     selection = null;
     render();
-    // skip the buzz during Auto Complete's rapid cascade — one light
-    // tap per card there would just be noise, not feedback
-    if (!autocompleting) hapticImpact("LIGHT");
     checkWin();
     return true;
   }
@@ -1330,22 +1425,6 @@
     return null;
   }
 
-  function clearDropHighlight(){
-    var els = document.querySelectorAll(".drop-target");
-    for (var i=0;i<els.length;i++) els[i].classList.remove("drop-target");
-  }
-
-  function updateDropHighlight(x, y){
-    clearDropHighlight();
-    if (!drag.cards) return;
-    var target = findDropTarget(x, y);
-    if (!target) return;
-    var legal = target.type === "foundation"
-      ? (drag.cards.length===1 && canStackFoundation(drag.cards[0], target.suit))
-      : (canStackTableau(drag.cards[0], target.col) && !(drag.pile==="tableau" && drag.col===target.col));
-    if (legal) target.el.classList.add("drop-target");
-  }
-
   // A deliberately generous slop radius — tapping should be the easy,
   // default action and dragging a more deliberate one, so a card isn't
   // accidentally yanked into drag mode by the small amount of finger
@@ -1360,7 +1439,6 @@
       else return;
     }
     positionDragEls(ev.clientX, ev.clientY);
-    updateDropHighlight(ev.clientX, ev.clientY);
   }
 
   function endPointerTracking(){
@@ -1374,7 +1452,6 @@
     if (!drag) return;
     var d = drag;
     drag = null;
-    clearDropHighlight();
     if (d.active){
       var target = findDropTarget(ev.clientX, ev.clientY);
       var moved = false;
@@ -1402,10 +1479,23 @@
     endPointerTracking();
     if (drag && drag.active) render();
     drag = null;
-    clearDropHighlight();
   }
 
   function drawCard(){
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Same fix as the foundations' "keep the previous card rendered
+    // underneath" trick: snapshot whichever waste cards are about to
+    // be superseded by this draw, so their fan slots don't go blank
+    // while the incoming cards are still traveling in from the stock.
+    // Old and new fan slots are pure geometry (position-based, not
+    // tied to which card occupies them), so the Nth-from-oldest card
+    // here lines up with the Nth-from-oldest incoming card below.
+    var oldPeek = [];
+    if (!reduceMotion){
+      wasteSlot.querySelectorAll(".card").forEach(function(el){
+        oldPeek.push({html: el.outerHTML, fanX: el.style.getPropertyValue("--fan-x")});
+      });
+    }
     pushHistory();
     // a card moving stock->waste has no on-screen "before" element (the
     // stock pile doesn't render individual cards), so the generic FLIP
@@ -1435,17 +1525,46 @@
     // skip the buzz during Auto Complete's rapid cascade — one light
     // tap per draw there would just be noise, not feedback
     if (!autocompleting) hapticImpact("LIGHT");
-    if (revealCount > 0 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+    if (revealCount > 0 && !reduceMotion){
+      // Re-insert the cards this draw just superseded, underneath and
+      // non-interactive, so their old slots keep showing something
+      // instead of going blank while the incoming cards are mid-flight.
+      // Removed once the slowest incoming card has actually landed.
+      oldPeek.forEach(function(o){
+        var tmp = document.createElement("div");
+        tmp.innerHTML = o.html;
+        var el = tmp.firstElementChild;
+        el.classList.add("waste-backdrop");
+        el.style.setProperty("--fan-x", o.fanX);
+        el.style.transform = "translate(" + o.fanX + ", 0)";
+        el.style.pointerEvents = "none";
+        el.style.zIndex = "0";
+        wasteSlot.insertBefore(el, wasteSlot.firstChild);
+      });
       // Reveal each newly-drawn card in the fan (oldest of the batch
       // first, newest last, matching how they'd actually be dealt),
       // staggered slightly so a 3-card draw reads as a small cascade
-      // instead of all three snapping into place at once.
-      var wasteCards = wasteSlot.querySelectorAll(".card");
+      // instead of all three snapping into place at once. Each one
+      // also carries the offset back to the stock pile's position, so
+      // it visibly travels off the face-down pile as it flips face up
+      // rather than just spinning in place at the waste.
+      var stockRect = stockBtn.getBoundingClientRect();
+      var wasteCards = wasteSlot.querySelectorAll(".card:not(.waste-backdrop)");
       var start = Math.max(0, wasteCards.length - revealCount);
+      var maxDelay = 0;
       for (var wi = start; wi < wasteCards.length; wi++){
         (function(el, delay){
+          maxDelay = Math.max(maxDelay, delay);
+          var r = el.getBoundingClientRect();
+          el.style.setProperty("--draw-dx", (stockRect.left - r.left) + "px");
+          el.style.setProperty("--draw-dy", (stockRect.top - r.top) + "px");
           setTimeout(function(){ flipRevealEl(el); }, delay);
         })(wasteCards[wi], (wi - start) * 60);
+      }
+      if (oldPeek.length){
+        setTimeout(function(){
+          wasteSlot.querySelectorAll(".waste-backdrop").forEach(function(el){ el.remove(); });
+        }, maxDelay + 280);
       }
     }
   }
@@ -1495,13 +1614,14 @@
     return map;
   }
 
-  function flipRevealEl(el){
+  function flipRevealEl(el, reverse){
     if (!el) return;
-    el.classList.remove("flip-reveal");
+    var cls = reverse ? "flip-reveal-back" : "flip-reveal";
+    el.classList.remove("flip-reveal", "flip-reveal-back");
     void el.offsetWidth;
-    el.classList.add("flip-reveal");
+    el.classList.add(cls);
     el.addEventListener("animationend", function handler(){
-      el.classList.remove("flip-reveal");
+      el.classList.remove(cls);
       el.removeEventListener("animationend", handler);
     }, {once:true});
   }
@@ -1551,6 +1671,11 @@
   }
 
   function renderBoard(){
+    // an undo's reverse-draw ghost cards (see undo()) remove themselves
+    // when their animation ends, but if another render lands first —
+    // a fast second undo, say — clean up whatever's left rather than
+    // risk a stray duplicate [data-card-id] confusing the FLIP diff
+    document.querySelectorAll(".card-ghost").forEach(function(g){ g.remove(); });
     app.className = handMode;
     drawSwitch.textContent = drawCount + "×";
     // Win replaces the title with a celebration message and the Draw
@@ -1702,14 +1827,22 @@
   stockBtn.addEventListener("click", drawCard);
   drawBtn.addEventListener("click", onDrawOrPlayAgain);
   drawBridge.addEventListener("click", onDrawOrPlayAgain);
-  undoBtn.addEventListener("click", undo);
+  undoBtn.addEventListener("click", function(){
+    hapticImpact("LIGHT");
+    undo();
+  });
   autocompleteBtn.addEventListener("click", runAutocomplete);
-  newGameBtn.addEventListener("click", newGame);
+  newGameBtn.addEventListener("click", function(){
+    hapticImpact("LIGHT");
+    newGame();
+  });
   handSwitch.addEventListener("click", function(){
+    hapticImpact("LIGHT");
     handMode = handMode === "right" ? "left" : "right";
     render();
   });
   drawSwitch.addEventListener("click", function(){
+    hapticImpact("LIGHT");
     drawCount = drawCount === 1 ? 3 : 1;
     render();
   });
