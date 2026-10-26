@@ -1447,11 +1447,31 @@
     window.removeEventListener("pointercancel", onDragCancel);
   }
 
+  // A card tap/drag is fully handled on pointerup, but the browser still
+  // fires a synthesized click afterward, hit-tested against the DOM as
+  // it stands once the move has re-rendered — so it can land on the
+  // stock pile or draw bridge sitting where the card just was and draw
+  // a card nobody asked for. Swallow that one trailing click.
+  function swallowTrailingClick(){
+    function block(e){
+      e.stopPropagation();
+      e.preventDefault();
+      cleanup();
+    }
+    function cleanup(){
+      clearTimeout(timer);
+      window.removeEventListener("click", block, true);
+    }
+    var timer = setTimeout(cleanup, 400);
+    window.addEventListener("click", block, true);
+  }
+
   function onDragEnd(ev){
     endPointerTracking();
     if (!drag) return;
     var d = drag;
     drag = null;
+    swallowTrailingClick();
     if (d.active){
       var target = findDropTarget(ev.clientX, ev.clientY);
       var moved = false;
