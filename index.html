@@ -1020,6 +1020,10 @@
       tableau: tableau,
       stock: deck,
       waste: [],
+      // how many of the waste's top cards belong to the latest draw and
+      // are still fanned out (3-draw mode) — older waste cards stay
+      // stacked underneath instead of re-fanning as the batch is played
+      wasteFan: 0,
       foundations: {S:[],H:[],D:[],C:[]}
     };
     history = [];
@@ -1152,6 +1156,7 @@
 
   function removeSelectedFromSource(){
     if (selection.pile==="waste"){
+      state.wasteFan = Math.max(0, (state.wasteFan||0) - 1);
       return [state.waste.pop()];
     }
     if (selection.pile==="foundation"){
@@ -1530,7 +1535,9 @@
         card.faceUp = true;
         state.waste.push(card);
       }
+      state.wasteFan = n;
     } else if (state.waste.length){
+      state.wasteFan = 0;
       while (state.waste.length){
         var c = state.waste.pop();
         c.faceUp = false;
@@ -1789,7 +1796,9 @@
     // direction cards fan out in.
     wasteSlot.innerHTML = "";
     if (state.waste.length){
-      var peekCount = drawCount === 3 ? Math.min(3, state.waste.length) : 1;
+      // fan only what's left of the latest draw (at least the top card,
+      // which is always playable); older cards stay hidden beneath
+      var peekCount = drawCount === 3 ? Math.max(1, Math.min(3, state.wasteFan||0, state.waste.length)) : 1;
       var peekStart = state.waste.length - peekCount;
       var fanDir = handMode === "right" ? -1 : 1;
       var anchorNewest = handMode === "right";
