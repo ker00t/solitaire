@@ -519,6 +519,126 @@
   .hand-toggle .ui-icon{width:18px; height:18px; transition:transform .18s ease;}
   #app.left .hand-toggle .ui-icon{transform:scaleX(-1);}
 
+
+  /* ---------- daily streak: a chip in the title corner opens a
+     monthly calendar of the days you've won a game ---------- */
+  .topbar{position:relative;}
+  .streak-chip{
+    position:absolute;
+    top:calc(env(safe-area-inset-top) + 14px);
+    display:flex;
+    align-items:center;
+    gap:6px;
+    min-height:40px;
+    padding:0 12px;
+    border:1px solid var(--felt-border);
+    border-radius:8px;
+    background:transparent;
+    color:var(--text-color);
+    font-family:inherit;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+  }
+  #app.right .streak-chip{right:0;}
+  #app.left .streak-chip{left:0;}
+  .streak-chip:active{background:var(--felt-700);}
+  .streak-chip .ui-icon{width:18px; height:18px;}
+  .streak-chip.lit .ui-icon{color:var(--heading-color);}
+
+  .streak-modal{
+    position:fixed;
+    inset:0;
+    z-index:100;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    background:rgba(0,0,0,0.5);
+  }
+  .streak-modal:not([hidden]){display:flex;}
+  .streak-panel{
+    position:relative;
+    width:100%;
+    max-width:340px;
+    max-height:100%;
+    overflow-y:auto;
+    padding:22px 18px 18px;
+    border:1px solid var(--felt-border);
+    border-radius:16px;
+    background:var(--ink-900);
+    color:var(--text-color);
+    box-shadow:0 12px 40px rgba(0,0,0,0.35);
+    animation:streak-in .18s ease;
+  }
+  @keyframes streak-in{
+    from{opacity:0; transform:translateY(8px) scale(0.97);}
+    to{opacity:1; transform:none;}
+  }
+  @media (prefers-reduced-motion: reduce){ .streak-panel{animation:none;} }
+  .streak-close, .cal-nav{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:36px;
+    height:36px;
+    padding:0;
+    border:1px solid var(--felt-border);
+    border-radius:8px;
+    background:transparent;
+    color:var(--text-color);
+    cursor:pointer;
+  }
+  .streak-close:active, .cal-nav:active{background:var(--felt-700);}
+  .cal-nav:disabled{opacity:0.3; cursor:default;}
+  .streak-close{position:absolute; top:12px; right:12px;}
+  .streak-close .ui-icon, .cal-nav .ui-icon{width:16px; height:16px;}
+  .streak-hero{text-align:center; padding:6px 0 2px;}
+  .streak-num{
+    font-family:'Jersey 10', 'Iowan Old Style', Georgia, serif;
+    font-size:72px;
+    line-height:64px;
+    color:var(--heading-color);
+  }
+  .streak-label{font-size:14px; font-weight:600; margin-top:6px;}
+  .streak-note{font-size:12px; opacity:0.75; margin-top:4px;}
+  .streak-stats{
+    display:flex;
+    justify-content:center;
+    gap:28px;
+    margin:14px 0 16px;
+    font-size:12px;
+  }
+  .streak-stats div{display:flex; flex-direction:column; align-items:center; gap:2px;}
+  .streak-stats b{font-size:18px; font-weight:700;}
+  .streak-stats span{opacity:0.75;}
+  .cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .cal-title{margin:0; font-size:15px; font-weight:700;}
+  .cal-dow, .cal-grid{display:grid; grid-template-columns:repeat(7, 1fr);}
+  .cal-dow{font-size:11px; font-weight:600; opacity:0.7; text-align:center; margin-bottom:4px;}
+  .cal-grid{row-gap:4px;}
+  .cal-day{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    height:36px;
+    font-size:13px;
+    font-variant-numeric:tabular-nums;
+    border:2px solid transparent;
+    border-radius:18px;
+  }
+  .cal-day.future{opacity:0.35;}
+  .cal-day.today{border-color:var(--heading-color);}
+  /* a run of consecutive winning days reads as one continuous band;
+     the square-cornered ends only meet where the neighbor is also a win */
+  .cal-day.win{
+    background:var(--heading-color);
+    border-color:var(--heading-color);
+    color:var(--on-heading);
+    font-weight:700;
+  }
+  .cal-day.win.join-l{border-top-left-radius:0; border-bottom-left-radius:0;}
+  .cal-day.win.join-r{border-top-right-radius:0; border-bottom-right-radius:0;}
+
   canvas#confetti{position:fixed; inset:0; z-index:19; pointer-events:none;}
 
   /* ---------- App Store badge: web only, sits in the bottom bar's
@@ -540,6 +660,7 @@
 
 <div id="app" class="right">
   <div class="topbar">
+    <button class="streak-chip" id="streakChip" aria-label="Daily streak calendar"></button>
     <h1 class="wordmark" id="wordmark" role="button" tabindex="0" aria-label="Shuffle color palette">Lazy<br>Solitaire</h1>
   </div>
 
@@ -608,6 +729,28 @@
 
 <canvas id="confetti"></canvas>
 
+<div class="streak-modal" id="streakModal" hidden>
+  <div class="streak-panel" role="dialog" aria-modal="true" aria-labelledby="calTitle">
+    <button class="streak-close" id="streakClose" aria-label="Close"></button>
+    <div class="streak-hero">
+      <div class="streak-num" id="streakNum">0</div>
+      <div class="streak-label" id="streakLabel">day streak</div>
+      <div class="streak-note" id="streakNote"></div>
+    </div>
+    <div class="streak-stats">
+      <div><b id="streakBest">0</b><span>best streak</span></div>
+      <div><b id="streakWins">0</b><span>total wins</span></div>
+    </div>
+    <div class="cal-head">
+      <button class="cal-nav" id="calPrev" aria-label="Previous month"></button>
+      <h2 class="cal-title" id="calTitle"></h2>
+      <button class="cal-nav" id="calNext" aria-label="Next month"></button>
+    </div>
+    <div class="cal-dow" aria-hidden="true"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+</div>
+
 <script>
 (function(){
   // iOS Safari/WKWebView won't apply :active styles on a plain tap
@@ -661,6 +804,10 @@
   var ICON_UNDO = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>';
   var ICON_AUTOCOMPLETE = '<svg class="ui-icon" viewBox="0 0 15.34 15.3337" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.53336 7.2003L1.00003 14.3336L8.13336 11.807M2.33336 1.66694H2.34003M14.3334 5.00027H14.34M9.66669 1.00027H9.67336M14.3334 13.0003H14.34M14.3334 1.00027L12.84 1.50027C12.415 1.64186 12.0522 1.9267 11.8139 2.30609C11.5756 2.68548 11.4764 3.13587 11.5334 3.58027C11.6 4.1536 11.1534 4.66694 10.5667 4.66694H10.3134C9.74003 4.66694 9.24669 5.06694 9.14003 5.62694L9.00003 6.3336M14.3334 8.33356L13.7867 8.11356C13.2134 7.88689 12.5734 8.24689 12.4667 8.85356C12.3934 9.32023 11.9867 9.66689 11.5134 9.66689H11M7.00003 1.00027L7.22003 1.54694C7.44669 2.12027 7.0867 2.76027 6.48003 2.86694C6.01336 2.9336 5.66669 3.34694 5.66669 3.82027V4.3336M7.00004 8.33362C8.28671 9.62028 8.88671 11.1136 8.33337 11.6669C7.78004 12.2203 6.28671 11.6203 5.00004 10.3336C3.71337 9.04695 3.11337 7.55362 3.66671 7.00028C4.22004 6.44695 5.71337 7.04695 7.00004 8.33362Z"/></svg>';
   var ICON_NEWGAME = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>';
+  var ICON_CALENDAR = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>';
+  var ICON_CLOSE = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  var ICON_CHEVRON_L = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';
+  var ICON_CHEVRON_R = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   var ICON_HAND = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>';
 
   function suitSvg(suit, extraClass){
@@ -1680,6 +1827,7 @@
     if (total === 52){
       setTimeout(function(){
         won = true;
+        recordWin();
         renderBoard();
         launchConfetti();
         hapticFireworks();
@@ -2086,6 +2234,176 @@
     }
     requestAnimationFrame(frame);
   }
+
+
+  // ---------- daily streak ----------
+  // A day counts once a game is won on it (the device's local date).
+  // Stored on-device only: { wins: { "YYYY-MM-DD": winsThatDay } }.
+  var STREAK_KEY = "lazySolitaire.streak.v1";
+  var streakChip = document.getElementById("streakChip");
+  var streakModal = document.getElementById("streakModal");
+  var calGrid = document.getElementById("calGrid");
+  var calPrev = document.getElementById("calPrev");
+  var calNext = document.getElementById("calNext");
+  var calView = null; // {y, m} month currently shown in the calendar
+  var streakData = loadStreak();
+
+  function loadStreak(){
+    try {
+      var raw = JSON.parse(localStorage.getItem(STREAK_KEY));
+      if (raw && typeof raw.wins === "object" && raw.wins) return raw;
+    } catch(e){}
+    return {wins:{}};
+  }
+  function saveStreak(){
+    try { localStorage.setItem(STREAK_KEY, JSON.stringify(streakData)); } catch(e){}
+  }
+  function pad2(n){ return (n<10 ? "0" : "") + n; }
+  function dayKey(y, m, d){ return y + "-" + pad2(m+1) + "-" + pad2(d); }
+  function keyOfDate(dt){ return dayKey(dt.getFullYear(), dt.getMonth(), dt.getDate()); }
+  function dayNumber(key){
+    var p = key.split("-");
+    return Math.round(Date.UTC(+p[0], +p[1]-1, +p[2]) / 86400000);
+  }
+  function hasWin(key){ return !!streakData.wins[key]; }
+
+  function recordWin(){
+    var key = keyOfDate(new Date());
+    var before = currentStreak();
+    streakData.wins[key] = (streakData.wins[key] || 0) + 1;
+    saveStreak();
+    updateStreakChip();
+    if (currentStreak() > before && streakChip.animate){
+      streakChip.animate(
+        [{transform:"scale(1)"},{transform:"scale(1.18)"},{transform:"scale(1)"}],
+        {duration:420, easing:"ease-out", delay:400}
+      );
+    }
+  }
+
+  // Consecutive days ending today — or ending yesterday while today's
+  // win is still to come, so the streak isn't shown as broken until
+  // the day has actually been missed.
+  function currentStreak(){
+    var now = new Date();
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (!hasWin(keyOfDate(d))) d.setDate(d.getDate() - 1);
+    var n = 0;
+    while (hasWin(keyOfDate(d))){ n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+  function bestStreak(){
+    var nums = Object.keys(streakData.wins).map(dayNumber).sort(function(a,b){ return a-b; });
+    var best = 0, run = 0, prev = null;
+    nums.forEach(function(n){
+      run = (prev !== null && n === prev + 1) ? run + 1 : 1;
+      if (run > best) best = run;
+      prev = n;
+    });
+    return best;
+  }
+  function totalWins(){
+    var t = 0;
+    Object.keys(streakData.wins).forEach(function(k){ t += streakData.wins[k]; });
+    return t;
+  }
+
+  function updateStreakChip(){
+    var n = currentStreak();
+    var today = hasWin(keyOfDate(new Date()));
+    streakChip.innerHTML = ICON_CALENDAR + "<span>" + n + "</span>";
+    streakChip.classList.toggle("lit", today);
+    streakChip.title = n + " day streak";
+  }
+
+  function renderCalendar(){
+    var now = new Date();
+    var todayKey = keyOfDate(now);
+    var y = calView.y, m = calView.m;
+    var first = new Date(y, m, 1);
+    var days = new Date(y, m + 1, 0).getDate();
+    var lead = first.getDay();
+    document.getElementById("calTitle").textContent =
+      first.toLocaleDateString(undefined, {month:"long", year:"numeric"});
+    calGrid.innerHTML = "";
+    for (var i=0; i<lead; i++) calGrid.appendChild(document.createElement("span"));
+    for (var d=1; d<=days; d++){
+      var key = dayKey(y, m, d);
+      var col = (lead + d - 1) % 7;
+      var cell = document.createElement("div");
+      cell.className = "cal-day";
+      cell.textContent = d;
+      var win = hasWin(key);
+      if (win){
+        cell.classList.add("win");
+        if (col > 0 && d > 1 && hasWin(dayKey(y, m, d-1))) cell.classList.add("join-l");
+        if (col < 6 && d < days && hasWin(dayKey(y, m, d+1))) cell.classList.add("join-r");
+      }
+      if (key === todayKey) cell.classList.add("today");
+      else if (key > todayKey) cell.classList.add("future");
+      cell.setAttribute("aria-label",
+        new Date(y, m, d).toLocaleDateString(undefined, {month:"long", day:"numeric"}) + (win ? ", won" : ""));
+      calGrid.appendChild(cell);
+    }
+    // can't browse into the future, or back before the first recorded win
+    var earliest = {y: now.getFullYear(), m: now.getMonth()};
+    Object.keys(streakData.wins).forEach(function(k){
+      var p = k.split("-");
+      var ey = +p[0], em = +p[1] - 1;
+      if (ey < earliest.y || (ey === earliest.y && em < earliest.m)) earliest = {y:ey, m:em};
+    });
+    calPrev.disabled = y < earliest.y || (y === earliest.y && m <= earliest.m);
+    calNext.disabled = y > now.getFullYear() || (y === now.getFullYear() && m >= now.getMonth());
+  }
+
+  function renderStreakPanel(){
+    var n = currentStreak();
+    var today = hasWin(keyOfDate(new Date()));
+    document.getElementById("streakNum").textContent = n;
+    document.getElementById("streakNote").textContent =
+      today ? "You've won today. Come back tomorrow!"
+      : n > 0 ? "Win a game today to keep it going"
+      : "Win a game to start a streak";
+    document.getElementById("streakBest").textContent = bestStreak();
+    document.getElementById("streakWins").textContent = totalWins();
+    renderCalendar();
+  }
+
+  function openStreak(){
+    hapticImpact("LIGHT");
+    var now = new Date();
+    calView = {y: now.getFullYear(), m: now.getMonth()};
+    renderStreakPanel();
+    streakModal.hidden = false;
+    document.getElementById("streakClose").focus();
+  }
+  function closeStreak(){
+    streakModal.hidden = true;
+    streakChip.focus();
+  }
+  function shiftCalMonth(delta){
+    var dt = new Date(calView.y, calView.m + delta, 1);
+    calView = {y: dt.getFullYear(), m: dt.getMonth()};
+    renderCalendar();
+  }
+
+  document.getElementById("streakClose").innerHTML = ICON_CLOSE;
+  calPrev.innerHTML = ICON_CHEVRON_L;
+  calNext.innerHTML = ICON_CHEVRON_R;
+  streakChip.addEventListener("click", openStreak);
+  document.getElementById("streakClose").addEventListener("click", closeStreak);
+  calPrev.addEventListener("click", function(){ shiftCalMonth(-1); });
+  calNext.addEventListener("click", function(){ shiftCalMonth(1); });
+  streakModal.addEventListener("click", function(e){ if (e.target === streakModal) closeStreak(); });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && !streakModal.hidden) closeStreak();
+  });
+  // the streak is judged against "today", which moves on while the app
+  // sits open in the background
+  document.addEventListener("visibilitychange", function(){
+    if (!document.hidden) updateStreakChip();
+  });
+  updateStreakChip();
 
   newGameBtn.innerHTML = "<span>New Game</span>";
   undoBtn.innerHTML = ICON_UNDO;
