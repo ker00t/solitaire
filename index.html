@@ -461,6 +461,7 @@
     cursor:pointer;
     padding:0;
   }
+  .stock-btn{transition:background-color .3s ease, border-color .3s ease;}
   .stock-btn:active{filter:brightness(1.12);}
   .stock-btn:disabled{opacity:0.4; filter:none;}
   .stock-btn .ui-icon{
@@ -1077,7 +1078,20 @@
     selection = null;
     if (moveCount>0) moveCount--;
 
-    if (ghosts.length){
+    var restoresRecycle = !reduceMotion && restored.waste.length > prevState.waste.length && restored.stock.length < prevState.stock.length;
+
+    if (restoresRecycle){
+      // exact reverse of a recycle: the waste cards flip back out of the
+      // stock into their slots (bottom of the fan first, top last)
+      renderBoard();
+      var rStock = stockBtn.getBoundingClientRect();
+      wasteSlot.querySelectorAll(".card").forEach(function(el, i){
+        var r = el.getBoundingClientRect();
+        flipCard(el, rStock.left - r.left, rStock.top - r.top, {delay: i*60});
+      });
+      var rIcon = stockBtn.querySelector(".ui-icon");
+      if (rIcon) rIcon.animate([{opacity:0},{opacity:1}], {duration:300, delay:150, easing:"ease-in", fill:"backwards"});
+    } else if (ghosts.length){
       renderBoard();
       var stockRect = stockBtn.getBoundingClientRect();
       // reverse of the deal order — the most-recently-drawn (top) card
@@ -1538,6 +1552,18 @@
         oldPeek.push({html: el.outerHTML, fanX: el.style.getPropertyValue("--fan-x")});
       });
     }
+    // Recycling the waste back into the stock: capture the visible
+    // waste cards (and the restart icon) now, since the re-render below
+    // removes them, so they can flip back onto the stock one at a time
+    // instead of vanishing while the stock fills in one frame.
+    var recycleGhosts = null, recycleIcon = null;
+    if (!reduceMotion && !autocompleting && !state.stock.length && state.waste.length){
+      recycleGhosts = Array.prototype.map.call(wasteSlot.querySelectorAll(".card:not(.waste-backdrop)"), function(el){
+        return {el: el.cloneNode(true), rect: el.getBoundingClientRect()};
+      });
+      var icon = stockBtn.querySelector(".ui-icon");
+      if (icon) recycleIcon = {el: icon.cloneNode(true), rect: icon.getBoundingClientRect()};
+    }
     pushHistory();
     // a card moving stock->waste has no on-screen "before" element (the
     // stock pile doesn't render individual cards), so the generic FLIP
@@ -1569,6 +1595,32 @@
     // skip the buzz during Auto Complete's rapid cascade — one light
     // tap per draw there would just be noise, not feedback
     if (!autocompleting) hapticImpact("LIGHT");
+    if (recycleGhosts && recycleGhosts.length){
+      var recycleStock = stockBtn.getBoundingClientRect();
+      if (recycleIcon){
+        var ic = recycleIcon.el;
+        ic.style.cssText = "position:fixed; margin:0; pointer-events:none; z-index:40;" +
+          "left:"+recycleIcon.rect.left+"px; top:"+recycleIcon.rect.top+"px;" +
+          "width:"+recycleIcon.rect.width+"px; height:"+recycleIcon.rect.height+"px;";
+        document.body.appendChild(ic);
+        ic.animate([{opacity:1},{opacity:0}], {duration:240, easing:"ease-out", fill:"forwards"}).onfinish = function(){ ic.remove(); };
+      }
+      // top card first, matching an undone draw
+      recycleGhosts.slice().reverse().forEach(function(g, idx){
+        var el = g.el;
+        el.classList.add("card-ghost");
+        el.querySelectorAll(".flip-back").forEach(function(b){ b.remove(); });
+        el.style.cssText = "position:fixed; margin:0; pointer-events:none;" +
+          "left:"+g.rect.left+"px; top:"+g.rect.top+"px;" +
+          "width:"+g.rect.width+"px; height:"+g.rect.height+"px; z-index:"+(50-idx)+";";
+        document.body.appendChild(el);
+        flipCard(el, recycleStock.left - g.rect.left, recycleStock.top - g.rect.top, {
+          reverse: true,
+          delay: idx*60,
+          onDone: function(){ el.remove(); }
+        });
+      });
+    }
     if (revealCount > 0 && !reduceMotion){
       // Re-insert the cards this draw just superseded, underneath and
       // non-interactive, so their old slots keep showing something
