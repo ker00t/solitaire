@@ -182,6 +182,8 @@
     position:relative;
   }
   .foundation:has(.card){border-style:solid;}
+  /* stays dashed while a card is still flying into the slot */
+  .foundation.landing{border-style:dashed;}
   .foundation .ghost{
     width:clamp(16px,5.2vw,24px);
     height:clamp(16px,5.2vw,24px);
@@ -205,6 +207,23 @@
     display:flex;
     flex-direction:column;
     min-height:24px;
+    position:relative;
+  }
+  /* A dashed slot outline kept permanently behind a column's / the
+     waste's cards (it's covered by the card while one sits there), so
+     the spot a card is flying into — or was just lifted out of, or is
+     being dragged from — is never left blank. Generated content, so it
+     never shows up in .children / querySelectorAll indexing. */
+  .col.has-cards::before, .waste-slot.has-cards::before{
+    content:"";
+    position:absolute;
+    top:0; left:0;
+    width:100%;
+    aspect-ratio:5/7;
+    box-sizing:border-box;
+    border:1.5px dashed var(--felt-border);
+    border-radius:8px;
+    pointer-events:none;
   }
 
   .card{
@@ -264,43 +283,20 @@
     65%{transform:translateY(2px);}
     100%{transform:translateY(0);}
   }
-  .card.flip-reveal{animation:flip-reveal .28s ease;}
-  /* --fan-x carries the waste fan's translateX offset (0px for any
-     card that isn't part of the fan — the fallback MUST carry a unit;
-     ghost/backdrop elements below never set --fan-x at all, and a
-     bare unitless 0 fallback silently breaks the whole transform's
-     interpolation wherever it's added to a px length inside calc(),
-     freezing the card at its resting transform for the entire
-     animation — only the filter still animated. Cost real time to
-     track down) through the keyframes, so revealing a fanned card
-     spins it in place instead of the rotation briefly clobbering its
-     fan position and snapping over once it ends. --draw-dx/--draw-dy
-     do the same for a card drawn from the stock: they hold the offset
-     back to the stock pile's position (0 for any reveal that has
-     nothing to do with the stock, e.g. a tableau card exposed by
-     removing the one on top of it), so the card visibly travels off
-     the face-down pile onto the waste as it flips face up. */
-  @keyframes flip-reveal{
-    0%{transform:translate(calc(var(--fan-x, 0px) + var(--draw-dx, 0px)), var(--draw-dy, 0px)) rotateY(90deg); filter:brightness(0.7);}
-    100%{transform:translate(var(--fan-x, 0px), 0) rotateY(0deg); filter:brightness(1);}
-  }
-  /* Undoing a draw plays the exact same journey as flip-reveal above,
-     just with the two endpoints swapped: starts resting at the waste
-     (flat, bright) and ends edge-on and dimmed back at the stock —
-     the same shape as the draw animation, in reverse. Its own keyframe
-     (states swapped, still played forward) rather than flip-reveal
-     with animation-direction:reverse, since reverse playback of a
-     custom-property-driven transform is an under-tested corner of the
-     spec across browsers. */
-  .card.flip-reveal-back{animation:flip-reveal-back .28s ease;}
-  @keyframes flip-reveal-back{
-    0%{transform:translate(var(--fan-x, 0px), 0) rotateY(0deg); filter:brightness(1);}
-    100%{transform:translate(calc(var(--fan-x, 0px) + var(--draw-dx, 0px)), var(--draw-dy, 0px)) rotateY(90deg); filter:brightness(0.7);}
+  /* Card back laid over a card's face while flipCard() has it showing
+     its back (the first half of a draw / last half of an undo) */
+  .flip-back{
+    position:absolute;
+    inset:-1px;
+    border-radius:inherit;
+    background:var(--felt-700);
+    border:1px solid var(--felt-border);
+    opacity:0;
+    pointer-events:none;
   }
   @media (prefers-reduced-motion: reduce){
     .card{transition:none;}
     .card.bounce{animation:none;}
-    .card.flip-reveal, .card.flip-reveal-back{animation:none;}
     .draw-btn, .undo-btn, .autocomplete-btn{transition:none;}
   }
 
@@ -932,7 +928,20 @@
 
     // ---- accessibility repairs (WCAG 2.1 AA) ----
     ensureContrast(text, ink900, 4.5);     // page text/icons vs page bg
-    ensureContrast(text, felt700, 4.5);    // button text/icons vs their fill
+    // Button text/icons also have to read against felt700 (the pressed
+    // fill / card backs). That must NOT be repaired by re-adjusting the
+    // text: when the text can't reach 4.5:1 against that mid-tone, the
+    // repair used to flip it to the opposite extreme (black text/icons
+    // on a dark page) and undo the page-contrast fix above. The page
+    // background wins — nudge felt700 toward the page color instead
+    // until the text clears it too (at worst it meets the page color,
+    // where the text already passes).
+    var feltL0 = felt700.l;
+    while (contrastOf(text, felt700) < 4.65 && Math.abs(felt700.l - ink900.l) > 1){
+      felt700.l -= dir*0.5;
+    }
+    fillL += felt700.l - feltL0;
+    feltBorder.l += felt700.l - feltL0;
     ensureContrast(heading, ink900, 4.5);  // title vs page bg
     ensureContrast(onBrass, brass, 4.5);   // win-dialog button text vs its fill
     ensureContrast(suitWarm, paper, 4.5);  // red-suit rank/icon vs card face
@@ -1083,16 +1092,22 @@
         el.style.height = g.rect.height+"px";
         el.style.margin = "0";
         el.style.zIndex = String(50 - idx);
-        el.style.setProperty("--draw-dx", (stockRect.left - g.rect.left)+"px");
-        el.style.setProperty("--draw-dy", (stockRect.top - g.rect.top)+"px");
         document.body.appendChild(el);
-        setTimeout(function(){
-          flipRevealEl(el, true);
-          el.addEventListener("animationend", function handler(){
-            el.remove();
-            el.removeEventListener("animationend", handler);
-          }, {once:true});
-        }, idx*60);
+        flipCard(el, stockRect.left - g.rect.left, stockRect.top - g.rect.top, {
+          reverse: true,
+          delay: idx*60,
+          onDone: function(){ el.remove(); }
+        });
+      });
+      // The older fan cards this draw had gathered into the pile fan
+      // back out to their slots, timed to finish with the last ghost.
+      var slotLeft = wasteSlot.getBoundingClientRect().left;
+      wasteSlot.querySelectorAll(".card").forEach(function(el){
+        var x = restX(el);
+        if (Math.abs(x) < 1) return;
+        var left = slotLeft + x;
+        var covered = ghosts.some(function(g){ return Math.abs(g.rect.left - left) < 1; });
+        if (!covered) slideFanCard(el, x, {reverse:true, delay:(order.length-1)*60});
       });
     } else {
       render();
@@ -1375,7 +1390,7 @@
     els.forEach(function(el, i){
       // A card grabbed moments after it moved or got revealed can
       // still be mid-animation (a CSS transition easing its FLIP
-      // transform back to rest, or the flip-reveal keyframe rotating
+      // transform back to rest, or a flipCard() animation rotating
       // it through rotateY(90deg)) — measuring its rect in that state
       // gives a squashed or zero-width box. Snap it to its true
       // resting layout first. The only card this ever runs on that
@@ -1384,7 +1399,9 @@
       // clearing it is always safe.
       el.style.transition = "none";
       el.style.transform = "";
-      el.classList.remove("flip-reveal", "bounce");
+      el.classList.remove("bounce");
+      el.getAnimations().forEach(function(a){ a.cancel(); });
+      el.querySelectorAll(".flip-back").forEach(function(b){ b.remove(); });
       var r = el.getBoundingClientRect();
       el.style.position = "fixed";
       el.style.margin = "0";
@@ -1525,7 +1542,7 @@
     // a card moving stock->waste has no on-screen "before" element (the
     // stock pile doesn't render individual cards), so the generic FLIP
     // system in render() can't detect it and animate it — give every
-    // newly-revealed card its own flip-reveal explicitly instead.
+    // newly-revealed card its own flipCard() explicitly instead.
     var revealCount = 0;
     if (state.stock.length){
       var n = Math.min(drawCount, state.stock.length);
@@ -1577,21 +1594,30 @@
       // rather than just spinning in place at the waste.
       var stockRect = stockBtn.getBoundingClientRect();
       var wasteCards = wasteSlot.querySelectorAll(".card:not(.waste-backdrop)");
+      // Old fan cards whose slot an incoming card doesn't cover would
+      // otherwise stay put and then all vanish in one frame when the
+      // backdrops are removed (a partial last batch) — gather them
+      // into the pile instead.
+      var newSlots = Array.prototype.map.call(wasteCards, restX);
+      wasteSlot.querySelectorAll(".waste-backdrop").forEach(function(el){
+        var x = restX(el);
+        if (Math.abs(x) < 1) return;
+        var covered = newSlots.some(function(nx){ return Math.abs(nx - x) < 1; });
+        if (!covered) slideFanCard(el, x);
+      });
       var start = Math.max(0, wasteCards.length - revealCount);
       var maxDelay = 0;
       for (var wi = start; wi < wasteCards.length; wi++){
         (function(el, delay){
           maxDelay = Math.max(maxDelay, delay);
           var r = el.getBoundingClientRect();
-          el.style.setProperty("--draw-dx", (stockRect.left - r.left) + "px");
-          el.style.setProperty("--draw-dy", (stockRect.top - r.top) + "px");
-          setTimeout(function(){ flipRevealEl(el); }, delay);
+          flipCard(el, stockRect.left - r.left, stockRect.top - r.top, {delay: delay});
         })(wasteCards[wi], (wi - start) * 60);
       }
       if (oldPeek.length){
         setTimeout(function(){
           wasteSlot.querySelectorAll(".waste-backdrop").forEach(function(el){ el.remove(); });
-        }, maxDelay + 280);
+        }, maxDelay + FLIP_MS + 30);
       }
     }
   }
@@ -1641,16 +1667,73 @@
     return map;
   }
 
-  function flipRevealEl(el, reverse){
-    if (!el) return;
-    var cls = reverse ? "flip-reveal-back" : "flip-reveal";
-    el.classList.remove("flip-reveal", "flip-reveal-back");
-    void el.offsetWidth;
-    el.classList.add(cls);
-    el.addEventListener("animationend", function handler(){
-      el.classList.remove(cls);
-      el.removeEventListener("animationend", handler);
-    }, {once:true});
+  // The two-sided flip between the stock pile and a waste slot. A draw
+  // plays it forward: the card starts on the stock showing its back,
+  // turns edge-on halfway, and lands face-up in the waste. Undo plays
+  // the very same animation with reverse:true, so it is an exact
+  // time-reversal of the draw (the easing is reversed along with it).
+  // dx/dy: offset from the card's resting spot back to the stock.
+  // Everything is literal px (read from the card's real resting
+  // transform) rather than CSS variables — those proved unreliable to
+  // interpolate in reverse.
+  var FLIP_MS = 320;
+  function flipCard(el, dx, dy, opts){
+    opts = opts || {};
+    var rest = new DOMMatrix(getComputedStyle(el).transform);
+    var rx = rest.m41, ry = rest.m42;
+    var back = document.createElement("div");
+    back.className = "flip-back";
+    el.appendChild(back);
+    var timing = {
+      duration: FLIP_MS,
+      delay: opts.delay || 0,
+      easing: "ease-in-out",
+      fill: "backwards",
+      direction: opts.reverse ? "reverse" : "normal"
+    };
+    function pos(f, rot){
+      return "translate("+(rx+dx*f)+"px,"+(ry+dy*f)+"px) rotateY("+rot+"deg)";
+    }
+    var anim = el.animate([
+      {transform:pos(1,0),   filter:"brightness(1)",    offset:0},
+      {transform:pos(0.5,90),  filter:"brightness(0.75)", offset:0.5},
+      {transform:pos(0.5,-90), filter:"brightness(0.75)", offset:0.5},
+      {transform:pos(0,0),   filter:"brightness(1)",    offset:1}
+    ], timing);
+    var backAnim = back.animate([
+      {opacity:1, offset:0},
+      {opacity:1, offset:0.5},
+      {opacity:0, offset:0.5},
+      {opacity:0, offset:1}
+    ], timing);
+    anim.onfinish = function(){
+      back.remove();
+      if (opts.onDone) opts.onDone();
+    };
+    return anim;
+  }
+
+  // Slides a waste-fan card between its fan slot and the pile's anchor
+  // position — how the previous fan collapses into the pile when a draw
+  // doesn't cover all of its slots (a partial last batch), and how it
+  // spreads back out on undo (reverse:true, same animation backward).
+  function slideFanCard(el, slotX, opts){
+    opts = opts || {};
+    var a = el.animate([
+      {transform:"translate("+slotX+"px,0px)"},
+      {transform:"translate(0px,0px)"}
+    ], {
+      duration: FLIP_MS,
+      delay: opts.delay || 0,
+      easing: "ease-in-out",
+      fill: "both",
+      direction: opts.reverse ? "reverse" : "normal"
+    });
+    if (opts.reverse) a.onfinish = function(){ a.cancel(); };
+    return a;
+  }
+  function restX(el){
+    return new DOMMatrix(getComputedStyle(el).transform).m41;
   }
 
   function applyCardTransitions(prevSnapshots){
@@ -1672,6 +1755,8 @@
         // reset would otherwise clobber)
         var baseZIndex = el.style.zIndex || "";
         el.style.zIndex = "50";
+        var landingSlot = el.closest(".foundation");
+        if (landingSlot) landingSlot.classList.add("landing");
         el.style.transition = "none";
         el.style.transform = "translate("+dx+"px,"+dy+"px) " + baseTransform;
         requestAnimationFrame(function(){
@@ -1681,12 +1766,13 @@
             el.addEventListener("transitionend", function handler(){
               el.style.transition = "";
               el.style.zIndex = baseZIndex;
+              if (landingSlot) landingSlot.classList.remove("landing");
               el.removeEventListener("transitionend", handler);
             });
           });
         });
       } else if (!prev.faceUp && isNowUp){
-        flipRevealEl(el);
+        flipCard(el, 0, 0);
       }
     });
   }
@@ -1762,6 +1848,7 @@
       var colEl = document.createElement("div");
       colEl.className = "col";
       colEl.dataset.col = col;
+      if (pile.length) colEl.classList.add("has-cards");
       if (!pile.length){
         var drop = document.createElement("div");
         drop.className = "empty-drop";
@@ -1795,6 +1882,7 @@
     // is the unmoved anchor (0 offset) has to flip too, not just the
     // direction cards fan out in.
     wasteSlot.innerHTML = "";
+    wasteSlot.classList.toggle("has-cards", state.waste.length > 0);
     if (state.waste.length){
       // fan only what's left of the latest draw (at least the top card,
       // which is always playable); older cards stay hidden beneath
@@ -1802,6 +1890,15 @@
       var peekStart = state.waste.length - peekCount;
       var fanDir = handMode === "right" ? -1 : 1;
       var anchorNewest = handMode === "right";
+      // the waste card just beneath the visible ones sits tucked under
+      // the fan's anchor card, so it's already showing in the slot when
+      // the top card is dragged off
+      if (peekStart > 0){
+        var underEl = cardEl(state.waste[peekStart-1], "");
+        underEl.style.pointerEvents = "none";
+        underEl.style.zIndex = "1";
+        wasteSlot.appendChild(underEl);
+      }
       for (var wi=peekStart; wi<state.waste.length; wi++){
         var recency = state.waste.length - 1 - wi; // 0 = top/newest card
         var isTop = recency === 0;
