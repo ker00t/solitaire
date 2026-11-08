@@ -1355,6 +1355,7 @@
     moveCount++;
     selection = null;
     render();
+    playSound("place");
     return true;
   }
 
@@ -1368,6 +1369,7 @@
     moveCount++;
     selection = null;
     render();
+    playSound("foundation", moved[0].rank);
     checkWin();
     return true;
   }
@@ -1716,7 +1718,7 @@
     // stock pile doesn't render individual cards), so the generic FLIP
     // system in render() can't detect it and animate it — give every
     // newly-revealed card its own flipCard() explicitly instead.
-    var revealCount = 0;
+    var revealCount = 0, didRecycle = false;
     if (state.stock.length){
       var n = Math.min(drawCount, state.stock.length);
       revealCount = n;
@@ -1727,6 +1729,7 @@
       }
       state.wasteFan = n;
     } else if (state.waste.length){
+      didRecycle = true;
       state.wasteFan = 0;
       while (state.waste.length){
         var c = state.waste.pop();
@@ -1741,7 +1744,12 @@
     render();
     // skip the buzz during Auto Complete's rapid cascade — one light
     // tap per draw there would just be noise, not feedback
-    if (!autocompleting) hapticImpact("LIGHT");
+    if (!autocompleting){
+      hapticImpact("LIGHT");
+      // one flip per card, in step with the visual stagger
+      for (var si=0; si<revealCount; si++) playSound("flip", si, si*0.06);
+      if (didRecycle) playSound("shuffle");
+    }
     if (recycleGhosts && recycleGhosts.length){
       var recycleStock = stockBtn.getBoundingClientRect();
       if (recycleIcon){
@@ -1828,6 +1836,7 @@
       setTimeout(function(){
         won = true;
         recordWin();
+        playSound("win");
         renderBoard();
         launchConfetti();
         hapticFireworks();
@@ -2147,7 +2156,7 @@
   // Draw doubles as "Play Again" once the game's won — same button,
   // same tap target, just a different action depending on state.
   function onDrawOrPlayAgain(){
-    if (won){ newGame(); return; }
+    if (won){ playSound("tap"); newGame(); return; }
     drawCard();
   }
   stockBtn.addEventListener("click", drawCard);
@@ -2174,11 +2183,13 @@
   });
   wordmark.addEventListener("click", function(){
     applyPalette(randomPalette());
+    playSound("theme");
   });
   wordmark.addEventListener("keydown", function(ev){
     if (ev.key === "Enter" || ev.key === " "){
       ev.preventDefault();
       applyPalette(randomPalette());
+      playSound("theme");
     }
   });
 
@@ -2455,6 +2466,135 @@
   }
 
   // Same no-op-on-web guard as syncStatusBar/checkForOTAUpdate above.
+  // ---------- sound ----------
+  // Everything is synthesized with the Web Audio API (no audio files):
+  // short, quiet blips and chimes. iOS keeps Web Audio muted while the
+  // ring/silent switch is on silent, so this follows the phone's
+  // silent mode automatically. The context can only start from a user
+  // gesture, so it's created/resumed on the first touch or click
+  // (and again after the app has been backgrounded).
+  var audioCtx = null, audioOut = null, noiseBuf = null;
+  function getAudio(){
+    if (!audioCtx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try {
+        audioCtx = new AC();
+        audioOut = audioCtx.createGain();
+        audioOut.gain.value = 1.0;
+        audioOut.connect(audioCtx.destination);
+      } catch(e){ audioCtx = null; return null; }
+    }
+    if (audioCtx.state === "suspended" || audioCtx.state === "interrupted"){
+      try { audioCtx.resume().catch(function(){}); } catch(e){}
+    }
+    return audioCtx;
+  }
+  ["pointerdown","touchend","click","keydown"].forEach(function(t){
+    document.addEventListener(t, function(){ getAudio(); }, {passive:true, capture:true});
+  });
+
+  function tone(freq, when, dur, o){
+    o = o || {};
+    var t = audioCtx.currentTime + when;
+    var osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    osc.type = o.type || "sine";
+    osc.frequency.setValueAtTime(freq, t);
+    if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(o.gain || 0.08, t + (o.attack || 0.004));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g); g.connect(audioOut);
+    osc.start(t); osc.stop(t + dur + 0.03);
+  }
+  // a soft, band-limited puff of noise — the "paper" in a card sound
+  function noise(when, dur, o){
+    o = o || {};
+    if (!noiseBuf){
+      noiseBuf = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
+      var d = noiseBuf.getChannelData(0);
+      for (var i=0; i<d.length; i++) d[i] = Math.random()*2 - 1;
+    }
+    var t = audioCtx.currentTime + when;
+    var src = audioCtx.createBufferSource(), f = audioCtx.createBiquadFilter(), g = audioCtx.createGain();
+    src.buffer = noiseBuf;
+    f.type = "bandpass";
+    f.Q.value = o.q || 1;
+    f.frequency.setValueAtTime(o.freq || 2000, t);
+    if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(o.gain || 0.08, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(audioOut);
+    src.start(t, Math.random()*0.5); src.stop(t + dur + 0.03);
+  }
+  // music-box bell: a sine plus two quiet overtones, ringing out
+  function bell(freq, when, dur, gain){
+    tone(freq, when, dur, {gain:gain});
+    tone(freq*2, when, dur*0.7, {gain:gain*0.3});
+    tone(freq*3, when, dur*0.4, {gain:gain*0.1});
+  }
+
+  var SOUNDS = {
+    // a soft, rising bloop; each card of a multi-card draw lands a
+    // whole step higher than the last
+    flip: function(w, i){
+      var f = 600 * Math.pow(2, 2*(i || 0)/12);
+      tone(f, w, 0.09, {to:f*1.35, gain:0.07});
+      tone(f*2, w, 0.06, {to:f*2.7, gain:0.016});
+    },
+    place: function(w){
+      noise(w, 0.04, {freq:1600, q:1, gain:0.08});
+      tone(330, w, 0.07, {to:230, gain:0.07});
+    },
+    // a light two-note chime, rising like a fresh start, as the
+    // Discard Pile is gathered back into the Draw Pile
+    shuffle: function(w){
+      tone(784, w, 0.14, {type:"triangle", gain:0.04});
+      tone(1047, w + 0.08, 0.2, {type:"triangle", gain:0.04});
+    },
+    tap: function(w){
+      tone(920, w, 0.05, {to:760, gain:0.045});
+    },
+    theme: function(w){
+      [1047, 1319, 1568].forEach(function(f, i){
+        tone(f, w + i*0.06, 0.22, {type:"triangle", gain:0.045});
+      });
+    },
+    // pitch climbs a pentatonic scale with the card's rank, so building
+    // a foundation from Ace to King literally plays a rising tune
+    foundation: function(w, rank){
+      var i = (rank || 1) - 1;
+      var semis = [0,2,4,7,9][i % 5] + 12*Math.floor(i / 5);
+      var f = 261.63 * Math.pow(2, semis/12);
+      bell(f, w, 0.45, 0.05);
+      tone(f*4, w + 0.04, 0.15, {gain:0.009});
+    },
+    win: function(w){
+      var C5=523.25, E5=659.25, G5=783.99, C6=1046.5, E6=1318.5, G6=1568, C7=2093;
+      [[C5,0],[E5,0.14],[G5,0.28],[C6,0.42],[G5,0.72],[C6,0.86],[E6,1.0]].forEach(function(n){
+        bell(n[0], w + n[1], 0.6, 0.085);
+      });
+      bell(G6, w + 1.14, 0.9, 0.09);
+      [C6, E6, G6, C7].forEach(function(f){ bell(f, w + 1.55, 1.5, 0.055); });
+      tone(3136, w + 1.7, 0.25, {type:"triangle", gain:0.02});
+      tone(3951, w + 1.8, 0.25, {type:"triangle", gain:0.015});
+    }
+  };
+  function playSound(name, arg, delay){
+    var ctx = getAudio();
+    if (!ctx || ctx.state !== "running" || !SOUNDS[name]) return;
+    try { SOUNDS[name](delay || 0, arg); } catch(e){}
+  }
+
+  // any button press gets a tiny blip — except the Draw button, whose
+  // sound is the card flip itself
+  document.addEventListener("click", function(e){
+    var b = e.target.closest && e.target.closest("button");
+    if (!b || b.disabled || b.id === "drawBtn" || b.id === "stockBtn") return;
+    playSound("tap");
+  }, true);
+
   function hapticImpact(style){
     var cap = window.Capacitor;
     if (!cap || !cap.isNativePlatform || !cap.isNativePlatform()) return;
