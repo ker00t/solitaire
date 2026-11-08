@@ -1,9 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="intro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Lazy Solitaire</title>
+<script>
+  // failsafe: the launch intro hides the board until it plays out; if
+  // anything stops it from finishing, never leave the screen blank
+  setTimeout(function(){
+    document.documentElement.classList.remove("intro", "intro-title");
+  }, 7000);
+</script>
 <script>
   // Vercel Web Analytics — page-view/referrer counts only, no cookies,
   // no persistent identifiers. This is a plain static site (no
@@ -638,6 +645,31 @@
   }
   .cal-day.win.join-l{border-top-left-radius:0; border-bottom-left-radius:0;}
   .cal-day.win.join-r{border-top-right-radius:0; border-bottom-right-radius:0;}
+
+
+  /* ---------- launch intro: the title letters in one by one at the
+     center of the screen, then glides to its place while the rest of
+     the board rises in. html.intro hides everything until then;
+     html.intro-title keeps only the real title hidden while the
+     overlay copy is still on its way to land on top of it. ---------- */
+  html.intro .streak-chip, html.intro .undo-row, html.intro .controls-row,
+  html.intro .tableau, html.intro .bottom-bar{opacity:0;}
+  html.intro .wordmark, html.intro-title .wordmark{visibility:hidden;}
+  html.intro #app, html.intro-title #app{pointer-events:none;}
+  .splash-title{
+    position:fixed;
+    z-index:200;
+    margin:0;
+    pointer-events:none;
+    white-space:nowrap;
+    font-family:'Jersey 10', 'Iowan Old Style', Georgia, serif;
+    font-weight:400;
+    font-size:clamp(52px, 20vw, 80px);
+    line-height:58px;
+    letter-spacing:-0.03em;
+    color:var(--heading-color);
+  }
+  .splash-ch{display:inline-block; opacity:0;}
 
   canvas#confetti{position:fixed; inset:0; z-index:19; pointer-events:none;}
 
@@ -2571,14 +2603,12 @@
       tone(f*4, w + 0.04, 0.15, {gain:0.009});
     },
     win: function(w){
-      var C5=523.25, E5=659.25, G5=783.99, C6=1046.5, E6=1318.5, G6=1568, C7=2093;
-      [[C5,0],[E5,0.14],[G5,0.28],[C6,0.42],[G5,0.72],[C6,0.86],[E6,1.0]].forEach(function(n){
-        bell(n[0], w + n[1], 0.6, 0.085);
+      var C5=523.25, E5=659.25, G5=783.99, C6=1046.5, E6=1318.5, G6=1568;
+      [[C5,0],[E5,0.1],[G5,0.2],[C6,0.3]].forEach(function(n){
+        bell(n[0], w + n[1], 0.45, 0.07);
       });
-      bell(G6, w + 1.14, 0.9, 0.09);
-      [C6, E6, G6, C7].forEach(function(f){ bell(f, w + 1.55, 1.5, 0.055); });
-      tone(3136, w + 1.7, 0.25, {type:"triangle", gain:0.02});
-      tone(3951, w + 1.8, 0.25, {type:"triangle", gain:0.015});
+      [C6, E6, G6].forEach(function(f){ bell(f, w + 0.45, 0.8, 0.045); });
+      tone(3136, w + 0.55, 0.2, {type:"triangle", gain:0.02});
     }
   };
   function playSound(name, arg, delay){
@@ -2664,9 +2694,94 @@
     appStoreBadge.hidden = false;
   }
 
+
+  // ---------- launch intro ----------
+  function startIntro(){
+    var root = document.documentElement;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !document.body.animate){
+      root.classList.remove("intro");
+      return;
+    }
+    var done = false, overlay = null, anims = [], timers = [];
+    function finish(viaTap){
+      if (done) return;
+      done = true;
+      timers.forEach(clearTimeout);
+      // a skip snaps everything into place; a natural finish leaves the
+      // last elements' rise-in animations to complete on their own
+      if (viaTap !== "natural") anims.forEach(function(a){ try { a.cancel(); } catch(e){} });
+      if (overlay) overlay.remove();
+      root.classList.remove("intro", "intro-title");
+      document.removeEventListener("pointerdown", onSkip, true);
+      if (viaTap === true) swallowTrailingClick();
+    }
+    function onSkip(){ finish(true); }
+    // tap anywhere to skip
+    document.addEventListener("pointerdown", onSkip, true);
+
+    var fontReady = (document.fonts && document.fonts.load)
+      ? Promise.race([document.fonts.load("80px 'Jersey 10'"), new Promise(function(r){ setTimeout(r, 1500); })])
+      : Promise.resolve();
+    fontReady.then(function(){ if (!done) run(); });
+
+    function run(){
+      var T = wordmark.getBoundingClientRect(); // where the title really lives
+      var dx = window.innerWidth/2 - (T.left + T.width/2);
+      var dy = window.innerHeight/2 - (T.top + T.height/2);
+      var startTransform = "translate(" + dx + "px," + dy + "px) scale(1.3)";
+      overlay = document.createElement("div");
+      overlay.className = "splash-title";
+      overlay.style.left = T.left + "px";
+      overlay.style.top = T.top + "px";
+      overlay.style.width = T.width + "px";
+      overlay.style.height = T.height + "px";
+      overlay.style.textAlign = handMode === "right" ? "right" : "left";
+      overlay.style.transform = startTransform;
+      var lines = ["Lazy", "Solitaire"];
+      overlay.innerHTML = lines.map(function(line){
+        return line.split("").map(function(c){ return '<span class="splash-ch">' + c + '</span>'; }).join("");
+      }).join("<br>");
+      document.body.appendChild(overlay);
+
+      var STAGGER = 55, LETTER_MS = 380;
+      var chars = overlay.querySelectorAll(".splash-ch");
+      Array.prototype.forEach.call(chars, function(ch, i){
+        anims.push(ch.animate([
+          {opacity:0, transform:"translateY(16px) scale(0.5)"},
+          {opacity:1, transform:"translateY(-3px) scale(1.12)", offset:0.6},
+          {opacity:1, transform:"none"}
+        ], {duration:LETTER_MS, delay:i*STAGGER, easing:"ease-out", fill:"both"}));
+      });
+      timers.push(setTimeout(move, (chars.length-1)*STAGGER + LETTER_MS + 280));
+
+      function move(){
+        // plain text again (letter spans are only needed for the
+        // entrance) so the landing is pixel-identical to the real title
+        overlay.innerHTML = "Lazy<br>Solitaire";
+        var glide = overlay.animate(
+          [{transform:startTransform}, {transform:"translate(0px,0px) scale(1)"}],
+          {duration:720, easing:"cubic-bezier(0.65, 0, 0.25, 1)", fill:"forwards"}
+        );
+        anims.push(glide);
+        root.classList.remove("intro");
+        root.classList.add("intro-title");
+        [[".streak-chip",0],[".undo-row",0],[".controls-row",70],[".tableau",140],[".bottom-bar",210]].forEach(function(it){
+          var el = document.querySelector(it[0]);
+          if (!el) return;
+          anims.push(el.animate(
+            [{opacity:0, transform:"translateY(28px)"}, {opacity:1, transform:"none"}],
+            {duration:520, delay:it[1] + 120, easing:"ease-out", fill:"backwards"}
+          ));
+        });
+        glide.onfinish = function(){ finish("natural"); };
+      }
+    }
+  }
+
   applyPalette(randomPalette());
   syncStatusBar(getTimeOfDay());
   newGame();
+  startIntro();
   checkForOTAUpdate();
   revealAppStoreBadge();
 })();
