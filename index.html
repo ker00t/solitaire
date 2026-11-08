@@ -2725,23 +2725,47 @@
     fontReady.then(function(){ if (!done) run(); });
 
     function run(){
-      var T = wordmark.getBoundingClientRect(); // where the title really lives
-      var dx = window.innerWidth/2 - (T.left + T.width/2);
-      var dy = window.innerHeight/2 - (T.top + T.height/2);
-      var startTransform = "translate(" + dx + "px," + dy + "px) scale(1.3)";
       overlay = document.createElement("div");
       overlay.className = "splash-title";
-      overlay.style.left = T.left + "px";
-      overlay.style.top = T.top + "px";
-      overlay.style.width = T.width + "px";
-      overlay.style.height = T.height + "px";
       overlay.style.textAlign = handMode === "right" ? "right" : "left";
-      overlay.style.transform = startTransform;
       var lines = ["Lazy", "Solitaire"];
       overlay.innerHTML = lines.map(function(line){
         return line.split("").map(function(c){ return '<span class="splash-ch">' + c + '</span>'; }).join("");
       }).join("<br>");
       document.body.appendChild(overlay);
+
+      // The overlay is re-pinned to the real title's CURRENT position on
+      // every frame (not measured once up front): on a device the layout
+      // can still shift after launch — the top safe-area inset isn't
+      // known yet at first paint — and a one-time measurement left the
+      // overlay landing in the wrong spot, then jumping when the real
+      // title took over. p is glide progress (0 = centered and enlarged,
+      // 1 = exactly on the real title).
+      var glideStart = null, GLIDE_MS = 720;
+      function place(p){
+        var T = wordmark.getBoundingClientRect();
+        var dx = window.innerWidth/2 - (T.left + T.width/2);
+        var dy = window.innerHeight/2 - (T.top + T.height/2);
+        var k = 1 - p;
+        overlay.style.left = T.left + "px";
+        overlay.style.top = T.top + "px";
+        overlay.style.width = T.width + "px";
+        overlay.style.height = T.height + "px";
+        overlay.style.transform = "translate(" + dx*k + "px," + dy*k + "px) scale(" + (1 + 0.3*k) + ")";
+      }
+      function ease(t){ return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2; }
+      function frame(now){
+        if (done) return;
+        if (glideStart === null){ place(0); }
+        else {
+          var t = Math.min(1, (now - glideStart) / GLIDE_MS);
+          place(ease(t));
+          if (t >= 1){ finish("natural"); return; }
+        }
+        requestAnimationFrame(frame);
+      }
+      place(0);
+      requestAnimationFrame(frame);
 
       var STAGGER = 55, LETTER_MS = 380;
       var chars = overlay.querySelectorAll(".splash-ch");
@@ -2758,11 +2782,7 @@
         // plain text again (letter spans are only needed for the
         // entrance) so the landing is pixel-identical to the real title
         overlay.innerHTML = "Lazy<br>Solitaire";
-        var glide = overlay.animate(
-          [{transform:startTransform}, {transform:"translate(0px,0px) scale(1)"}],
-          {duration:720, easing:"cubic-bezier(0.65, 0, 0.25, 1)", fill:"forwards"}
-        );
-        anims.push(glide);
+        glideStart = performance.now();
         root.classList.remove("intro");
         root.classList.add("intro-title");
         [[".streak-chip",0],[".undo-row",0],[".controls-row",70],[".tableau",140],[".bottom-bar",210]].forEach(function(it){
@@ -2773,7 +2793,6 @@
             {duration:520, delay:it[1] + 120, easing:"ease-out", fill:"backwards"}
           ));
         });
-        glide.onfinish = function(){ finish("natural"); };
       }
     }
   }
